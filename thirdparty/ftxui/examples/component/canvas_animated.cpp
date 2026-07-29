@@ -3,18 +3,18 @@
 // the LICENSED file.
 #include <cmath>                   // for sin, cos
 #include <ftxui/dom/elements.hpp>  // for canvas, Element, separator, hbox, operator|, border
-#include <ftxui/screen/screen.hpp>  // for Pixel
+#include <ftxui/screen/screen.hpp>  // for Cell
 #include <memory>   // for allocator, shared_ptr, __shared_ptr_access
 #include <string>   // for string, basic_string
 #include <utility>  // for move
 #include <vector>   // for vector, __alloc_traits<>::value_type
 
+#include "ftxui/component/app.hpp"  // for App
 #include "ftxui/component/component.hpp"  // for Renderer, CatchEvent, Horizontal, Menu, Tab
-#include "ftxui/component/component_base.hpp"      // for ComponentBase
-#include "ftxui/component/event.hpp"               // for Event
-#include "ftxui/component/mouse.hpp"               // for Mouse
-#include "ftxui/component/screen_interactive.hpp"  // for ScreenInteractive
-#include "ftxui/dom/canvas.hpp"                    // for Canvas
+#include "ftxui/component/component_base.hpp"  // for ComponentBase
+#include "ftxui/component/event.hpp"           // for Event
+#include "ftxui/component/mouse.hpp"           // for Mouse
+#include "ftxui/dom/canvas.hpp"                // for Canvas
 #include "ftxui/screen/color.hpp"  // for Color, Color::Red, Color::Blue, Color::Green, ftxui
 
 int main() {
@@ -115,7 +115,7 @@ int main() {
     auto c = Canvas(100, 100);
     c.DrawText(0, 0, "A piece of text");
     c.DrawText(mouse_x, mouse_y, "This is a piece of text with effects",
-               [](Pixel& p) {
+               [](Cell& p) {
                  p.foreground_color = Color::Red;
                  p.underlined = true;
                  p.bold = true;
@@ -171,20 +171,22 @@ int main() {
       for (int x = 0; x < size; x++) {
         float dx = x - mx;
         float dy = y - my;
-        ys[y][x] = -1.5 + 3.0 * std::exp(-0.2f * (dx * dx + dy * dy));
+        ys[y][x] = -1.5f + 3.0f * std::exp(-0.2f * (dx * dx + dy * dy));
       }
     }
     for (int y = 0; y < size; y++) {
       for (int x = 0; x < size; x++) {
         if (x != 0) {
-          c.DrawPointLine(
-              5 * (x - 1) + 3 * (y - 0), 90 - 5 * (y - 0) - 5 * ys[y][x - 1],
-              5 * (x - 0) + 3 * (y - 0), 90 - 5 * (y - 0) - 5 * ys[y][x]);
+          c.DrawPointLine(static_cast<int>(5 * (x - 1) + 3 * (y - 0)),
+                          static_cast<int>(90 - 5 * (y - 0) - 5 * ys[y][x - 1]),
+                          static_cast<int>(5 * (x - 0) + 3 * (y - 0)),
+                          static_cast<int>(90 - 5 * (y - 0) - 5 * ys[y][x]));
         }
         if (y != 0) {
-          c.DrawPointLine(
-              5 * (x - 0) + 3 * (y - 1), 90 - 5 * (y - 1) - 5 * ys[y - 1][x],
-              5 * (x - 0) + 3 * (y - 0), 90 - 5 * (y - 0) - 5 * ys[y][x]);
+          c.DrawPointLine(static_cast<int>(5 * (x - 0) + 3 * (y - 1)),
+                          static_cast<int>(90 - 5 * (y - 1) - 5 * ys[y - 1][x]),
+                          static_cast<int>(5 * (x - 0) + 3 * (y - 0)),
+                          static_cast<int>(90 - 5 * (y - 0) - 5 * ys[y][x]));
         }
       }
     }
@@ -256,7 +258,7 @@ int main() {
            border;
   });
 
-  auto screen = ScreenInteractive::FitComponent();
+  auto screen = App::FitComponent();
   screen.Loop(component_renderer);
 
   return 0;

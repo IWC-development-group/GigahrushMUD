@@ -10,7 +10,7 @@
 #include "ftxui/component/mouse.hpp"  // for Mouse, Mouse::Button, Mouse::Left, Mouse::Motion, Mouse::Pressed
 #include "ftxui/dom/elements.hpp"   // for Fit
 #include "ftxui/dom/node.hpp"       // for Render
-#include "ftxui/screen/screen.hpp"  // for Fixed, Screen, Pixel
+#include "ftxui/screen/screen.hpp"  // for Fixed, Screen, Cell
 #include "ftxui/util/ref.hpp"       // for Ref
 #include "gtest/gtest.h"  // for AssertionResult, Message, TestPartResult, EXPECT_EQ, EXPECT_TRUE, Test, EXPECT_FALSE, TEST
 
@@ -53,10 +53,10 @@ TEST(InputTest, Type) {
 
   auto screen = Screen::Create(Dimension::Fixed(10), Dimension::Fixed(2));
   Render(screen, document);
-  EXPECT_EQ(screen.PixelAt(0, 0).character, "a");
-  EXPECT_EQ(screen.PixelAt(1, 0).character, "b");
-  EXPECT_EQ(screen.PixelAt(0, 1).character, "c");
-  EXPECT_EQ(screen.PixelAt(1, 1).character, " ");
+  EXPECT_EQ(screen.CellAt(0, 0).character, "a");
+  EXPECT_EQ(screen.CellAt(1, 0).character, "b");
+  EXPECT_EQ(screen.CellAt(0, 1).character, "c");
+  EXPECT_EQ(screen.CellAt(1, 1).character, " ");
 }
 
 TEST(InputTest, ArrowLeftRight) {
@@ -239,13 +239,13 @@ TEST(InputTest, Home) {
   EXPECT_TRUE(input->OnEvent(Event::Character('b')));
   EXPECT_TRUE(input->OnEvent(Event::Character('c')));
   EXPECT_EQ(content, "abc\n测bc");
-  EXPECT_EQ(cursor_position, 9u);
+  EXPECT_EQ(cursor_position, 9);
 
   EXPECT_TRUE(input->OnEvent(Event::Home));
-  EXPECT_EQ(cursor_position, 0u);
+  EXPECT_EQ(cursor_position, 0);
 
   EXPECT_TRUE(input->OnEvent(Event::Character('-')));
-  EXPECT_EQ(cursor_position, 1u);
+  EXPECT_EQ(cursor_position, 1);
   EXPECT_EQ(content, "-abc\n测bc");
 }
 
@@ -266,10 +266,10 @@ TEST(InputTest, End) {
   EXPECT_TRUE(input->OnEvent(Event::ArrowUp));
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
   EXPECT_EQ(content, "abc\n测bc");
-  EXPECT_EQ(cursor_position, 2u);
+  EXPECT_EQ(cursor_position, 2);
 
   input->OnEvent(Event::End);
-  EXPECT_EQ(cursor_position, 9u);
+  EXPECT_EQ(cursor_position, 9);
 }
 
 TEST(InputTest, Delete) {
@@ -288,38 +288,38 @@ TEST(InputTest, Delete) {
   EXPECT_TRUE(input->OnEvent(Event::Character('c')));
 
   EXPECT_EQ(content, "abc\n测bc");
-  EXPECT_EQ(cursor_position, 9u);
+  EXPECT_EQ(cursor_position, 9);
 
   EXPECT_FALSE(input->OnEvent(Event::Delete));
   EXPECT_EQ(content, "abc\n测bc");
-  EXPECT_EQ(cursor_position, 9u);
+  EXPECT_EQ(cursor_position, 9);
 
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
   EXPECT_EQ(content, "abc\n测bc");
-  EXPECT_EQ(cursor_position, 8u);
+  EXPECT_EQ(cursor_position, 8);
 
   EXPECT_TRUE(input->OnEvent(Event::Delete));
   EXPECT_EQ(content, "abc\n测b");
-  EXPECT_EQ(cursor_position, 8u);
+  EXPECT_EQ(cursor_position, 8);
 
   EXPECT_FALSE(input->OnEvent(Event::Delete));
   EXPECT_EQ(content, "abc\n测b");
-  EXPECT_EQ(cursor_position, 8u);
+  EXPECT_EQ(cursor_position, 8);
 
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
   EXPECT_TRUE(input->OnEvent(Event::Delete));
   EXPECT_EQ(content, "abc\nb");
-  EXPECT_EQ(cursor_position, 4u);
+  EXPECT_EQ(cursor_position, 4);
 
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
   EXPECT_TRUE(input->OnEvent(Event::Delete));
   EXPECT_EQ(content, "abcb");
-  EXPECT_EQ(cursor_position, 3u);
+  EXPECT_EQ(cursor_position, 3);
 
   EXPECT_TRUE(input->OnEvent(Event::Delete));
   EXPECT_EQ(content, "abc");
-  EXPECT_EQ(cursor_position, 3u);
+  EXPECT_EQ(cursor_position, 3);
 
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
@@ -349,45 +349,45 @@ TEST(InputTest, Backspace) {
   EXPECT_TRUE(input->OnEvent(Event::Character('c')));
 
   EXPECT_EQ(content, "abc\n测bc");
-  EXPECT_EQ(cursor_position, 9u);
+  EXPECT_EQ(cursor_position, 9);
 
   EXPECT_TRUE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "abc\n测b");
-  EXPECT_EQ(cursor_position, 8u);
+  EXPECT_EQ(cursor_position, 8);
 
   EXPECT_TRUE(input->OnEvent(Event::ArrowLeft));
   EXPECT_TRUE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "abc\nb");
-  EXPECT_EQ(cursor_position, 4u);
+  EXPECT_EQ(cursor_position, 4);
 
   EXPECT_TRUE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "abcb");
-  EXPECT_EQ(cursor_position, 3u);
+  EXPECT_EQ(cursor_position, 3);
 
   EXPECT_TRUE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "abb");
-  EXPECT_EQ(cursor_position, 2u);
+  EXPECT_EQ(cursor_position, 2);
 
   EXPECT_TRUE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "ab");
-  EXPECT_EQ(cursor_position, 1u);
+  EXPECT_EQ(cursor_position, 1);
 
   EXPECT_TRUE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "b");
-  EXPECT_EQ(cursor_position, 0u);
+  EXPECT_EQ(cursor_position, 0);
 
   EXPECT_FALSE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "b");
-  EXPECT_EQ(cursor_position, 0u);
+  EXPECT_EQ(cursor_position, 0);
 
   EXPECT_TRUE(input->OnEvent(Event::ArrowRight));
   EXPECT_TRUE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "");
-  EXPECT_EQ(cursor_position, 0u);
+  EXPECT_EQ(cursor_position, 0);
 
   EXPECT_FALSE(input->OnEvent(Event::Backspace));
   EXPECT_EQ(content, "");
-  EXPECT_EQ(cursor_position, 0u);
+  EXPECT_EQ(cursor_position, 0);
 }
 
 TEST(InputTest, CtrlArrow) {
@@ -577,17 +577,17 @@ TEST(InputTest, TypePassword) {
 
   input->OnEvent(Event::Character('a'));
   EXPECT_EQ(content, "a");
-  EXPECT_EQ(cursor_position, 1u);
+  EXPECT_EQ(cursor_position, 1);
 
   input->OnEvent(Event::Character('b'));
   EXPECT_EQ(content, "ab");
-  EXPECT_EQ(cursor_position, 2u);
+  EXPECT_EQ(cursor_position, 2);
 
   auto document = input->Render();
   auto screen = Screen::Create(Dimension::Fit(document));
   Render(screen, document);
-  EXPECT_EQ(screen.PixelAt(0, 0).character, "•");
-  EXPECT_EQ(screen.PixelAt(1, 0).character, "•");
+  EXPECT_EQ(screen.CellAt(0, 0).character, "•");
+  EXPECT_EQ(screen.CellAt(1, 0).character, "•");
 }
 
 TEST(InputTest, MouseClick) {
@@ -607,7 +607,7 @@ TEST(InputTest, MouseClick) {
   input->OnEvent(Event::Return);
 
   EXPECT_EQ(content, "abcd\nabcd\n");
-  EXPECT_EQ(cursor_position, 10u);
+  EXPECT_EQ(cursor_position, 10);
 
   auto render = [&] {
     auto document = input->Render();
@@ -615,7 +615,7 @@ TEST(InputTest, MouseClick) {
     Render(screen, document);
   };
   render();
-  EXPECT_EQ(cursor_position, 10u);
+  EXPECT_EQ(cursor_position, 10);
 
   Mouse mouse;
   mouse.button = Mouse::Button::Left;
@@ -628,61 +628,61 @@ TEST(InputTest, MouseClick) {
   mouse.y = 0;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 0u);
+  EXPECT_EQ(cursor_position, 0);
 
   mouse.x = 2;
   mouse.y = 0;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 2u);
+  EXPECT_EQ(cursor_position, 2);
 
   mouse.x = 2;
   mouse.y = 0;
   EXPECT_FALSE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 2u);
+  EXPECT_EQ(cursor_position, 2);
 
   mouse.x = 1;
   mouse.y = 0;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 1u);
+  EXPECT_EQ(cursor_position, 1);
 
   mouse.x = 3;
   mouse.y = 0;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 3u);
+  EXPECT_EQ(cursor_position, 3);
 
   mouse.x = 4;
   mouse.y = 0;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 4u);
+  EXPECT_EQ(cursor_position, 4);
 
   mouse.x = 5;
   mouse.y = 0;
   EXPECT_FALSE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 4u);
+  EXPECT_EQ(cursor_position, 4);
 
   mouse.x = 5;
   mouse.y = 1;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 9u);
+  EXPECT_EQ(cursor_position, 9);
 
   mouse.x = 1;
   mouse.y = 1;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 6u);
+  EXPECT_EQ(cursor_position, 6);
 
   mouse.x = 4;
   mouse.y = 2;
   EXPECT_TRUE(input->OnEvent(Event::Mouse("", mouse)));
   render();
-  EXPECT_EQ(cursor_position, 10u);
+  EXPECT_EQ(cursor_position, 10);
 }
 
 TEST(InputTest, MouseClickComplex) {
@@ -700,7 +700,7 @@ TEST(InputTest, MouseClickComplex) {
   input->OnEvent(Event::Character("a⃒"));
   input->OnEvent(Event::Character("ā"));
 
-  EXPECT_EQ(cursor_position, 27u);
+  EXPECT_EQ(cursor_position, 27);
 
   auto render = [&] {
     auto document = input->Render();
@@ -779,6 +779,46 @@ TEST(InputTest, InsertMode) {
   EXPECT_EQ(content, "axyz\nefg");
   EXPECT_TRUE(input->OnEvent(Event::Character('X')));
   EXPECT_EQ(content, "axyz\nefgX");
+}
+
+TEST(InputTest, NestedRendererCursorVisibility) {
+  std::string text1 = "T1";
+  std::string text2 = "T2";
+  std::string text3 = "T3";
+  std::string text4 = "T4";
+
+  auto inp1 = Input(&text1, "Input 1");
+  auto inp2 = Input(&text2, "Input 2");
+  auto inp3 = Input(&text3, "Input 3");
+  auto inp4 = Input(&text4, "Input 4");
+
+  auto container = Container::Horizontal({
+      Container::Vertical({inp1, inp2}),
+      Container::Vertical({inp3, inp4}),
+  });
+
+  auto renderer = Renderer(container, [&] {
+    return hbox({
+        vbox({inp1->Render(), separatorEmpty(), inp2->Render()}),
+        vbox({inp3->Render(), separatorEmpty(), inp4->Render()}),
+    });
+  });
+
+  // Focus inp1
+  inp1->TakeFocus();
+  auto doc1 = renderer->Render();
+  auto screen1 = Screen::Create(Dimension::Fixed(80), Dimension::Fixed(24));
+  Render(screen1, doc1);
+  EXPECT_NE(screen1.cursor().shape, Screen::Cursor::Hidden);
+
+  // Focus inp3
+  inp3->TakeFocus();
+  auto doc3 = renderer->Render();
+  auto screen3 = Screen::Create(Dimension::Fixed(80), Dimension::Fixed(24));
+  Render(screen3, doc3);
+
+  // Bug #1220: Cursor should not be hidden on the second nested component.
+  EXPECT_NE(screen3.cursor().shape, Screen::Cursor::Hidden);
 }
 
 }  // namespace ftxui

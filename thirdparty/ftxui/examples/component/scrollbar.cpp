@@ -1,8 +1,8 @@
 // Copyright 2023 Arthur Sonzogni. All rights reserved.
 // Use of this source code is governed by the MIT license that can be found in
 // the LICENSE file.
+#include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
-#include <ftxui/component/screen_interactive.hpp>
 #include <string>
 
 using namespace ftxui;
@@ -10,8 +10,8 @@ using namespace ftxui;
 Component DummyWindowContent() {
   class Impl : public ComponentBase {
    private:
-    float scroll_x = 0.1;
-    float scroll_y = 0.1;
+    float scroll_x = 0.1f;
+    float scroll_y = 0.1f;
 
    public:
     Impl() {
@@ -106,7 +106,7 @@ int main() {
       window_2,
   });
 
-  auto screen = ScreenInteractive::Fullscreen();
+  auto screen = App::Fullscreen();
   screen.Loop(window_container);
 
   return EXIT_SUCCESS;

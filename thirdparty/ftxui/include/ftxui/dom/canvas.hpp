@@ -9,8 +9,9 @@
 #include <string>         // for string
 #include <unordered_map>  // for unordered_map
 
-#include "ftxui/screen/color.hpp"  // for Color
-#include "ftxui/screen/image.hpp"  // for Pixel, Image
+#include "ftxui/screen/color.hpp"    // for Color
+#include "ftxui/screen/surface.hpp"  // for Cell, Surface
+#include "ftxui/util/export.hpp"
 
 #ifdef DrawText
 // Workaround for WinUsr.h (via Windows.h) defining macros that break things.
@@ -35,7 +36,7 @@ namespace ftxui {
 /// get the correct position in the terminal.
 ///
 /// @ingroup dom
-struct Canvas {
+struct FTXUI_EXPORT(DOM) Canvas {
  public:
   Canvas() = default;
   Canvas(int width, int height);
@@ -43,9 +44,11 @@ struct Canvas {
   // Getters:
   int width() const { return width_; }
   int height() const { return height_; }
-  Pixel GetPixel(int x, int y) const;
+  Cell GetCell(int x, int y) const;
+  // [Deprecated] alias for GetCell.
+  Cell GetPixel(int x, int y) const { return GetCell(x, y); }
 
-  using Stylizer = std::function<void(Pixel&)>;
+  using Stylizer = std::function<void(Cell&)>;
 
   // Draws using braille characters --------------------------------------------
   void DrawPointOn(int x, int y);
@@ -113,8 +116,13 @@ struct Canvas {
   // Draw using directly pixels or images --------------------------------------
   // x is considered to be a multiple of 2.
   // y is considered to be a multiple of 4.
-  void DrawPixel(int x, int y, const Pixel&);
-  void DrawImage(int x, int y, const Image&);
+  void DrawCell(int x, int y, const Cell&);
+  void DrawSurface(int x, int y, const Surface&);
+
+  // [Deprecated] alias for DrawCell.
+  void DrawPixel(int x, int y, const Cell& cell) { DrawCell(x, y, cell); }
+  // [Deprecated] alias for DrawSurface.
+  void DrawImage(int x, int y, const Surface& s) { DrawSurface(x, y, s); }
 
   // Decorator:
   // x is considered to be a multiple of 2.
@@ -132,9 +140,9 @@ struct Canvas {
     kBraille,  // Units of size 1x1
   };
 
-  struct Cell {
+  struct CanvasCell {
     CellType type = kCell;
-    Pixel content;
+    Cell content;
   };
 
   struct XY {
@@ -154,7 +162,7 @@ struct Canvas {
 
   int width_ = 0;
   int height_ = 0;
-  std::unordered_map<XY, Cell, XYHash> storage_;
+  std::unordered_map<XY, CanvasCell, XYHash> storage_;
 };
 
 }  // namespace ftxui

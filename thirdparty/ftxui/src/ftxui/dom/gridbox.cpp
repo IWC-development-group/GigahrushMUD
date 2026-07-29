@@ -46,6 +46,13 @@ class GridBox : public Node {
         line.push_back(filler());
       }
     }
+
+    // Add children to properly forward non overridden methods from Node.
+    for (auto& line : lines_) {
+      for (auto& cell : line) {
+        children_.push_back(cell);
+      }
+    }
   }
 
   void ComputeRequirement() override {
@@ -72,12 +79,10 @@ class GridBox : public Node {
     // Forward the focused/focused child state:
     for (int x = 0; x < x_size; ++x) {
       for (int y = 0; y < y_size; ++y) {
-        if (requirement_.focused.enabled ||
-            !lines_[y][x]->requirement().focused.enabled) {
-          continue;
+        if (requirement_.focused.Prefer(lines_[y][x]->requirement().focused)) {
+          requirement_.focused = lines_[y][x]->requirement().focused;
+          requirement_.focused.box.Shift(size_x[x], size_y[y]);
         }
-        requirement_.focused = lines_[y][x]->requirement().focused;
-        requirement_.focused.box.Shift(size_x[x], size_y[y]);
       }
     }
   }

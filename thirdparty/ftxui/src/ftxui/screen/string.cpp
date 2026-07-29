@@ -11,11 +11,12 @@
 
 #include "ftxui/screen/string.hpp"
 
-#include <array>    // for array
-#include <cstddef>  // for size_t
-#include <cstdint>  // for uint32_t, uint8_t, uint16_t, int32_t
-#include <string>   // for string, basic_string, wstring
-#include <tuple>    // for _Swallow_assign, ignore
+#include <array>        // for array
+#include <cstddef>      // for size_t
+#include <cstdint>      // for uint32_t, uint8_t, uint16_t, int32_t
+#include <string>       // for string, basic_string, wstring
+#include <string_view>  // for string_view
+#include <tuple>        // for _Swallow_assign, ignore
 #include <vector>
 
 #include "ftxui/screen/deprecated.hpp"       // for wchar_width, wstring_width
@@ -1328,7 +1329,35 @@ int wstring_width(const std::wstring& text) {
   return width;
 }
 
+// Return how many cells the UTF8 encoded string |input| is taking when printed.
+// Control characters are not taking any space, combining characters are
+// modifying the previous character and are not taking any space, fullwidth
+// characters are taking two cells and all the other characters are taking one
+// cell.
 int string_width(std::string_view input) {
+  // 1-byte optimization: This function is often called on a single ASCII
+  // character, so we can optimize this case by skipping the UTF8 decoding.
+  if (input.size() == 1) {
+    const char c = input[0];
+    if (c >= 32 && c < 127) {  // NOLINT
+      return 1;
+    }
+  }
+
+  // ASCII optimization: If the string is pure ASCII, we can skip the UTF8
+  // decoding and just count the number of characters, ignoring control
+  // characters.
+  bool is_pure_ascii = true;
+  for (const char c : input) {
+    if (c < 31 || c >= 127) {  // NOLINT
+      is_pure_ascii = false;
+      break;
+    }
+  }
+  if (is_pure_ascii) {
+    return static_cast<int>(input.size());
+  }
+
   int width = 0;
   size_t start = 0;
   while (start < input.size()) {
@@ -1386,13 +1415,13 @@ std::vector<std::string> Utf8ToGlyphs(std::string_view input) {
     // Fullwidth characters take two cells. The second is made of the empty
     // string to reserve the space the first is taking.
     if (IsFullWidth(codepoint)) {
-      out.push_back(std::string(append));
+      out.emplace_back(append);
       out.emplace_back("");
       continue;
     }
 
     // Normal characters:
-    out.push_back(std::string(append));
+    out.emplace_back(append);
   }
   return out;
 }

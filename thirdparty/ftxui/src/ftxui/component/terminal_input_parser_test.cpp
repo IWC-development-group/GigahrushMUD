@@ -64,7 +64,7 @@ TEST(Event, EscapeKeyEnoughWait) {
   parser.Add('');
   parser.Timeout(50);
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_EQ(received_events[0], Event::Escape);
 }
 
@@ -78,7 +78,7 @@ TEST(Event, EscapeFast) {
   parser.Add('b');
   parser.Timeout(49);
 
-  EXPECT_EQ(2, received_events.size());
+  EXPECT_EQ(2u, received_events.size());
   EXPECT_EQ(received_events[0], Event::AltA);
   EXPECT_EQ(received_events[1], Event::AltB);
 }
@@ -98,7 +98,7 @@ TEST(Event, MouseLeftClickPressed) {
   parser.Add('2');
   parser.Add('M');
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_TRUE(received_events[0].is_mouse());
   EXPECT_EQ(Mouse::Left, received_events[0].mouse().button);
   EXPECT_EQ(12, received_events[0].mouse().x);
@@ -122,7 +122,7 @@ TEST(Event, MouseLeftMoved) {
   parser.Add('2');
   parser.Add('M');
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_TRUE(received_events[0].is_mouse());
   EXPECT_EQ(Mouse::Left, received_events[0].mouse().button);
   EXPECT_EQ(12, received_events[0].mouse().x);
@@ -145,7 +145,7 @@ TEST(Event, MouseLeftClickReleased) {
   parser.Add('2');
   parser.Add('m');
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_TRUE(received_events[0].is_mouse());
   EXPECT_EQ(Mouse::Left, received_events[0].mouse().button);
   EXPECT_EQ(12, received_events[0].mouse().x);
@@ -166,7 +166,7 @@ TEST(Event, MouseReporting) {
   parser.Add('2');
   parser.Add('R');
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_TRUE(received_events[0].is_cursor_position());
   EXPECT_EQ(42, received_events[0].cursor_x());
   EXPECT_EQ(12, received_events[0].cursor_y());
@@ -188,7 +188,7 @@ TEST(Event, MouseMiddleClick) {
   parser.Add('2');
   parser.Add('M');
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_TRUE(received_events[0].is_mouse());
   EXPECT_EQ(Mouse::Middle, received_events[0].mouse().button);
   EXPECT_EQ(12, received_events[0].mouse().x);
@@ -211,7 +211,7 @@ TEST(Event, MouseRightClick) {
   parser.Add('2');
   parser.Add('M');
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_TRUE(received_events[0].is_mouse());
   EXPECT_EQ(Mouse::Right, received_events[0].mouse().button);
   EXPECT_EQ(12, received_events[0].mouse().x);
@@ -293,7 +293,7 @@ TEST(Event, UTF8) {
     }
 
     if (test.valid) {
-      EXPECT_EQ(1, received_events.size());
+      EXPECT_EQ(1u, received_events.size());
       EXPECT_TRUE(received_events[0].is_character());
     } else {
       EXPECT_TRUE(received_events.empty());
@@ -307,7 +307,7 @@ TEST(Event, NewLine) {
     auto parser = TerminalInputParser(
         [&](Event event) { received_events.push_back(std::move(event)); });
     parser.Add(newline);
-    EXPECT_EQ(1, received_events.size());
+    EXPECT_EQ(1u, received_events.size());
     EXPECT_TRUE(received_events[0] == Event::Return);
   }
 }
@@ -337,7 +337,7 @@ TEST(Event, Control) {
     if (test.cancel) {
       EXPECT_TRUE(received_events.empty());
     } else {
-      EXPECT_EQ(1, received_events.size());
+      EXPECT_EQ(1u, received_events.size());
       EXPECT_EQ(received_events[0], Event::Special({test.input}));
     }
   }
@@ -371,6 +371,10 @@ TEST(Event, Special) {
       {str("\x1BOD"), Event::ArrowLeft},
       {str("\x1BOH"), Event::Home},
       {str("\x1BOF"), Event::End},
+
+      // Home/End variants.
+      {str("\x1B[1~"), Event::Home},
+      {str("\x1B[4~"), Event::End},
 
       // Backspace & Quirk for:
       // https://github.com/ArthurSonzogni/FTXUI/issues/508
@@ -452,7 +456,7 @@ TEST(Event, Special) {
     for (auto input : test.input) {
       parser.Add(input);
     }
-    EXPECT_EQ(1, received_events.size());
+    EXPECT_EQ(1u, received_events.size());
     EXPECT_EQ(received_events[0], test.expected);
   }
 }
@@ -472,9 +476,201 @@ TEST(Event, DeviceControlString) {
   parser.Add(27);   // ESC
   parser.Add(92);   // (backslash)
 
-  EXPECT_EQ(1, received_events.size());
+  EXPECT_EQ(1u, received_events.size());
   EXPECT_TRUE(received_events[0].is_cursor_shape());
   EXPECT_EQ(1, received_events[0].cursor_shape());
+}
+
+TEST(Event, PrimaryDeviceAttributes) {
+  std::vector<Event> received_events;
+  auto parser = TerminalInputParser(
+      [&](Event event) { received_events.push_back(std::move(event)); });
+  parser.Add('\x1B');
+  parser.Add('[');
+  parser.Add('?');
+  parser.Add('6');
+  parser.Add('2');
+  parser.Add(';');
+  parser.Add('1');
+  parser.Add(';');
+  parser.Add('2');
+  parser.Add('c');
+
+  EXPECT_EQ(1u, received_events.size());
+  EXPECT_TRUE(received_events[0].IsTerminalCapabilities());
+  EXPECT_EQ(3u, received_events[0].TerminalCapabilities().size());
+  EXPECT_EQ(62, received_events[0].TerminalCapabilities()[0]);
+  EXPECT_EQ(1, received_events[0].TerminalCapabilities()[1]);
+  EXPECT_EQ(2, received_events[0].TerminalCapabilities()[2]);
+}
+
+TEST(Event, SecondaryDeviceAttributes) {
+  std::vector<Event> received_events;
+  auto parser = TerminalInputParser(
+      [&](Event event) { received_events.push_back(std::move(event)); });
+  parser.Add('\x1B');
+  parser.Add('[');
+  parser.Add('>');
+  parser.Add('0');
+  parser.Add(';');
+  parser.Add('1');
+  parser.Add('2');
+  parser.Add('3');
+  parser.Add(';');
+  parser.Add('0');
+  parser.Add('c');
+
+  EXPECT_EQ(1u, received_events.size());
+  EXPECT_TRUE(received_events[0].IsTerminalNameVersion());
+  EXPECT_EQ("xterm", received_events[0].TerminalName());
+  EXPECT_EQ(123, received_events[0].TerminalVersion());
+}
+
+TEST(Event, TerminalIdentification_XTerm) {
+  std::vector<Event> received_events;
+  auto parser = TerminalInputParser(
+      [&](Event event) { received_events.push_back(std::move(event)); });
+
+  // XTerm often identifies as VT220 (1) or VT420 (41)
+  // DA2: ESC [ > 41 ; 370 ; 0 c
+  parser.Add('\x1B');
+  parser.Add('[');
+  parser.Add('>');
+  parser.Add('4');
+  parser.Add('1');
+  parser.Add(';');
+  parser.Add('3');
+  parser.Add('7');
+  parser.Add('0');
+  parser.Add(';');
+  parser.Add('0');
+  parser.Add('c');
+
+  EXPECT_EQ(1u, received_events.size());
+  EXPECT_TRUE(received_events[0].IsTerminalNameVersion());
+  EXPECT_EQ("vt420", received_events[0].TerminalName());
+  EXPECT_EQ(370, received_events[0].TerminalVersion());
+}
+
+TEST(Event, TerminalIdentification_VT525) {
+  std::vector<Event> received_events;
+  auto parser = TerminalInputParser(
+      [&](Event event) { received_events.push_back(std::move(event)); });
+
+  // DA2: ESC [ > 65 ; 1 ; 0 c
+  parser.Add('\x1B');
+  parser.Add('[');
+  parser.Add('>');
+  parser.Add('6');
+  parser.Add('5');
+  parser.Add(';');
+  parser.Add('1');
+  parser.Add(';');
+  parser.Add('0');
+  parser.Add('c');
+
+  EXPECT_EQ(1u, received_events.size());
+  EXPECT_TRUE(received_events[0].IsTerminalNameVersion());
+  EXPECT_EQ("vt525", received_events[0].TerminalName());
+  EXPECT_EQ(1, received_events[0].TerminalVersion());
+}
+
+TEST(Event, TerminalCapabilities_Rich) {
+  std::vector<Event> received_events;
+  auto parser = TerminalInputParser(
+      [&](Event event) { received_events.push_back(std::move(event)); });
+
+  // DA1: ESC [ ? 62 ; 1 ; 2 ; 4 ; 6 ; 22 c
+  // 62: VT220, 1: 132 cols, 2: Printer, 4: Sixel, 6: Selective Erase, 22: Color
+  parser.Add('\x1B');
+  parser.Add('[');
+  parser.Add('?');
+  parser.Add('6');
+  parser.Add('2');
+  parser.Add(';');
+  parser.Add('1');
+  parser.Add(';');
+  parser.Add('2');
+  parser.Add(';');
+  parser.Add('4');
+  parser.Add(';');
+  parser.Add('6');
+  parser.Add(';');
+  parser.Add('2');
+  parser.Add('2');
+  parser.Add('c');
+
+  EXPECT_EQ(1u, received_events.size());
+  EXPECT_TRUE(received_events[0].IsTerminalCapabilities());
+
+  auto names = received_events[0].TerminalCapabilityNames();
+  EXPECT_EQ(6u, names.size());
+  EXPECT_EQ("VT220", names[0]);
+  EXPECT_EQ("132-columns", names[1]);
+  EXPECT_EQ("Printer-port", names[2]);
+  EXPECT_EQ("Sixel-graphics", names[3]);
+  EXPECT_EQ("Selective-erase", names[4]);
+  EXPECT_EQ("ANSI-color", names[5]);
+}
+
+TEST(Event, XTVERSION) {
+  std::vector<Event> received_events;
+  auto parser = TerminalInputParser(
+      [&](Event event) { received_events.push_back(std::move(event)); });
+
+  // DCS > | name version ST
+  parser.Add('\x1B');
+  parser.Add('P');
+  parser.Add('>');
+  parser.Add('|');
+  parser.Add('x');
+  parser.Add('t');
+  parser.Add('e');
+  parser.Add('r');
+  parser.Add('m');
+  parser.Add(' ');
+  parser.Add('3');
+  parser.Add('7');
+  parser.Add('0');
+  parser.Add('\x1B');
+  parser.Add('\\');
+
+  EXPECT_EQ(1u, received_events.size());
+  EXPECT_TRUE(received_events[0].IsTerminalEmulator());
+  EXPECT_EQ("xterm", received_events[0].TerminalEmulatorName());
+  EXPECT_EQ("370", received_events[0].TerminalEmulatorVersion());
+}
+
+TEST(Event, XTVERSION_Kitty) {
+  std::vector<Event> received_events;
+  auto parser = TerminalInputParser(
+      [&](Event event) { received_events.push_back(std::move(event)); });
+
+  // DCS > | name(version) ST
+  parser.Add('\x1B');
+  parser.Add('P');
+  parser.Add('>');
+  parser.Add('|');
+  parser.Add('k');
+  parser.Add('i');
+  parser.Add('t');
+  parser.Add('t');
+  parser.Add('y');
+  parser.Add('(');
+  parser.Add('0');
+  parser.Add('.');
+  parser.Add('3');
+  parser.Add('9');
+  parser.Add('.');
+  parser.Add('1');
+  parser.Add(')');
+  parser.Add('\x1B');
+  parser.Add('\\');
+
+  EXPECT_EQ(1u, received_events.size());
+  EXPECT_TRUE(received_events[0].IsTerminalEmulator());
+  EXPECT_EQ("kitty", received_events[0].TerminalEmulatorName());
+  EXPECT_EQ("0.39.1", received_events[0].TerminalEmulatorVersion());
 }
 
 }  // namespace ftxui

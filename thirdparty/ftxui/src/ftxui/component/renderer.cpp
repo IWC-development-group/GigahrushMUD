@@ -20,7 +20,7 @@ namespace ftxui {
 /// ### Example
 ///
 /// ```cpp
-/// auto screen = ScreenInteractive::TerminalOutput();
+/// auto screen = App::TerminalOutput();
 /// auto renderer = Renderer([] {
 ///   return text("My interface");
 /// });
@@ -47,7 +47,7 @@ Component Renderer(std::function<Element()> render) {
 /// ### Example
 ///
 /// ```cpp
-/// auto screen = ScreenInteractive::TerminalOutput();
+/// auto screen = App::TerminalOutput();
 /// std::string label = "Click to quit";
 /// auto button = Button(&label, screen.ExitLoopClosure());
 /// auto renderer = Renderer(button, [&] {
@@ -72,7 +72,7 @@ Component Renderer(Component child, std::function<Element()> render) {
 /// ### Example
 ///
 /// ```cpp
-/// auto screen = ScreenInteractive::TerminalOutput();
+/// auto screen = App::TerminalOutput();
 /// auto renderer = Renderer([] (bool focused) {
 ///   if (focused)
 ///     return text("My interface") | inverted;
@@ -115,11 +115,11 @@ Component Renderer(std::function<Element(bool)> render) {
 /// ### Example
 ///
 /// ```cpp
-/// auto screen = ScreenInteractive::TerminalOutput();
+/// auto screen = App::TerminalOutput();
 /// auto renderer =
-//     Renderer([] { return text("Hello");)
-///  | Renderer(bold)
-///  | Renderer(inverted);
+///   Renderer([] { return text("Hello"); })
+///   | Renderer(bold)
+///   | Renderer(inverted);
 /// screen.Loop(renderer);
 /// ```
 ComponentDecorator Renderer(ElementDecorator decorator) {  // NOLINT

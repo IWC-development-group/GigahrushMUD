@@ -3,16 +3,17 @@
 // the LICENSE file.
 #include <cstddef>  // for size_t
 #include <cstdint>
-#include <iostream>  // for operator<<, stringstream, basic_ostream, flush, cout, ostream
+#include <iostream>  // for cout, flush
 #include <limits>
-#include <map>      // for _Rb_tree_const_iterator, map, operator!=, operator==
-#include <sstream>  // IWYU pragma: keep
-#include <utility>  // for pair
+#include <map>     // for _Rb_tree_const_iterator, map, operator!=, operator==
+#include <string>  // for string
+#include <string_view>  // for string_view
+#include <utility>      // for pair
 
-#include "ftxui/screen/image.hpp"  // for Image
-#include "ftxui/screen/pixel.hpp"  // for Pixel
+#include "ftxui/screen/cell.hpp"  // for Cell
 #include "ftxui/screen/screen.hpp"
 #include "ftxui/screen/string.hpp"    // for string_width
+#include "ftxui/screen/surface.hpp"   // for Surface
 #include "ftxui/screen/terminal.hpp"  // for Dimensions, Size
 
 #if defined(_WIN32)
@@ -56,7 +57,12 @@ void WindowsEmulateVT100Terminal() {
   auto stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
 
   DWORD out_mode = 0;
-  GetConsoleMode(stdout_handle, &out_mode);
+  if (!GetConsoleMode(stdout_handle, &out_mode)) {
+    // The output is not a console (e.g. redirected to a file or a pipe). Keep
+    // the detected color support and let the consumer of the stream interpret
+    // the escape sequences.
+    return;
+  }
 
   // https://docs.microsoft.com/en-us/windows/console/setconsolemode
   const int enable_virtual_terminal_processing = 0x0004;
@@ -69,60 +75,71 @@ void WindowsEmulateVT100Terminal() {
 #endif
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void UpdatePixelStyle(const Screen* screen,
-                      std::stringstream& ss,
-                      const Pixel& prev,
-                      const Pixel& next) {
+void UpdateCellStyle(const Screen* screen,
+                     std::string& ss,
+                     const Cell& prev,
+                     const Cell& next) {
   // See https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
   if (FTXUI_UNLIKELY(next.hyperlink != prev.hyperlink)) {
-    ss << "\x1B]8;;" << screen->Hyperlink(next.hyperlink) << "\x1B\\";
+    ss += "\x1B]8;;";
+    ss += screen->Hyperlink(next.hyperlink);
+    ss += "\x1B\\";
   }
 
   // Bold
   if (FTXUI_UNLIKELY((next.bold ^ prev.bold) | (next.dim ^ prev.dim))) {
     // BOLD_AND_DIM_RESET:
-    ss << ((prev.bold && !next.bold) || (prev.dim && !next.dim) ? "\x1B[22m"
-                                                                : "");
-    ss << (next.bold ? "\x1B[1m" : "");  // BOLD_SET
-    ss << (next.dim ? "\x1B[2m" : "");   // DIM_SET
+    if ((prev.bold && !next.bold) || (prev.dim && !next.dim)) {
+      ss += "\x1B[22m";
+    }
+    if (next.bold) {
+      ss += "\x1B[1m";  // BOLD_SET
+    }
+    if (next.dim) {
+      ss += "\x1B[2m";  // DIM_SET
+    }
   }
 
   // Underline
   if (FTXUI_UNLIKELY(next.underlined != prev.underlined ||
                      next.underlined_double != prev.underlined_double)) {
-    ss << (next.underlined          ? "\x1B[4m"     // UNDERLINE
+    ss += (next.underlined          ? "\x1B[4m"     // UNDERLINE
            : next.underlined_double ? "\x1B[21m"    // UNDERLINE_DOUBLE
                                     : "\x1B[24m");  // UNDERLINE_RESET
   }
 
   // Blink
   if (FTXUI_UNLIKELY(next.blink != prev.blink)) {
-    ss << (next.blink ? "\x1B[5m"     // BLINK_SET
+    ss += (next.blink ? "\x1B[5m"     // BLINK_SET
                       : "\x1B[25m");  // BLINK_RESET
   }
 
   // Inverted
   if (FTXUI_UNLIKELY(next.inverted != prev.inverted)) {
-    ss << (next.inverted ? "\x1B[7m"     // INVERTED_SET
+    ss += (next.inverted ? "\x1B[7m"     // INVERTED_SET
                          : "\x1B[27m");  // INVERTED_RESET
   }
 
   // Italics
   if (FTXUI_UNLIKELY(next.italic != prev.italic)) {
-    ss << (next.italic ? "\x1B[3m"     // ITALIC_SET
+    ss += (next.italic ? "\x1B[3m"     // ITALIC_SET
                        : "\x1B[23m");  // ITALIC_RESET
   }
 
   // StrikeThrough
   if (FTXUI_UNLIKELY(next.strikethrough != prev.strikethrough)) {
-    ss << (next.strikethrough ? "\x1B[9m"     // CROSSED_OUT
+    ss += (next.strikethrough ? "\x1B[9m"     // CROSSED_OUT
                               : "\x1B[29m");  // CROSSED_OUT_RESET
   }
 
   if (FTXUI_UNLIKELY(next.foreground_color != prev.foreground_color ||
                      next.background_color != prev.background_color)) {
-    ss << "\x1B[" + next.foreground_color.Print(false) + "m";
-    ss << "\x1B[" + next.background_color.Print(true) + "m";
+    ss += "\x1B[";
+    next.foreground_color.PrintTo(ss, false);
+    ss += 'm';
+    ss += "\x1B[";
+    next.background_color.PrintTo(ss, true);
+    ss += 'm';
   }
 }
 
@@ -295,7 +312,7 @@ const std::map<std::string, TileEncoding> tile_encoding = { // NOLINT
 // clang-format on
 
 template <class A, class B>
-std::map<B, A> InvertMap(const std::map<A, B> input) {
+std::map<B, A> InvertMap(const std::map<A, B>& input) {
   std::map<B, A> output;
   for (const auto& it : input) {
     output[it.second] = it.first;
@@ -364,8 +381,8 @@ void UpgradeTopDown(std::string& top, std::string& down) {
   }
 }
 
-bool ShouldAttemptAutoMerge(Pixel& pixel) {
-  return pixel.automerge && pixel.character.size() == 3;
+bool ShouldAttemptAutoMerge(Cell& cell) {
+  return cell.automerge && cell.character.size() == 3;
 }
 
 }  // namespace
@@ -396,13 +413,13 @@ Screen Screen::Create(Dimensions dimension) {
   return {dimension.dimx, dimension.dimy};
 }
 
-Screen::Screen(int dimx, int dimy) : Image{dimx, dimy} {
+Screen::Screen(int dimx, int dimy) : Surface{dimx, dimy} {
 #if defined(_WIN32)
   // The placement of this call is a bit weird, however we can assume that
   // anybody who instantiates a Screen object eventually wants to output
-  // something to the console. If that is not the case, use an instance of Image
-  // instead. As we require UTF8 for all input/output operations we will just
-  // switch to UTF8 encoding here
+  // something to the console. If that is not the case, use an instance of
+  // Surface instead. As we require UTF8 for all input/output operations we will
+  // just switch to UTF8 encoding here
   SetConsoleOutputCP(CP_UTF8);
   SetConsoleCP(CP_UTF8);
   WindowsEmulateVT100Terminal();
@@ -414,39 +431,55 @@ Screen::Screen(int dimx, int dimy) : Image{dimx, dimy} {
 /// @note Don't forget to flush stdout. Alternatively, you can use
 /// Screen::Print();
 std::string Screen::ToString() const {
-  std::stringstream ss;
+  // Pre-allocate: ~30 bytes per cell for character + escape codes.
+  std::string ss;
+  ss.reserve(static_cast<size_t>(dimx_) * static_cast<size_t>(dimy_) * 30);
+  ToString(ss);
+  return ss;
+}
 
-  const Pixel default_pixel;
-  const Pixel* previous_pixel_ref = &default_pixel;
+/// Produce a std::string that can be used to print the Screen on the
+/// terminal.
+/// @param ss The string to append to.
+void Screen::ToString(std::string& ss) const {
+  const Cell default_cell;
+  const Cell* previous_cell_ref = &default_cell;
 
   for (int y = 0; y < dimy_; ++y) {
     // New line in between two lines.
     if (y != 0) {
-      UpdatePixelStyle(this, ss, *previous_pixel_ref, default_pixel);
-      previous_pixel_ref = &default_pixel;
-      ss << "\r\n";
+      UpdateCellStyle(this, ss, *previous_cell_ref, default_cell);
+      previous_cell_ref = &default_cell;
+      ss += "\r\n";
     }
 
     // After printing a fullwith character, we need to skip the next cell.
     bool previous_fullwidth = false;
-    for (const auto& pixel : pixels_[y]) {
-      if (!previous_fullwidth) {
-        UpdatePixelStyle(this, ss, *previous_pixel_ref, pixel);
-        previous_pixel_ref = &pixel;
-        if (pixel.character.empty()) {
-          ss << " ";
+    if (dimx_ > 0) {
+      const Cell* line_start = &FastCellAt(0, y);
+      const Cell* line_end = line_start + dimx_;
+      for (const Cell* it = line_start; it != line_end; ++it) {
+        const auto& cell = *it;
+        if (!previous_fullwidth) {
+          UpdateCellStyle(this, ss, *previous_cell_ref, cell);
+          previous_cell_ref = &cell;
+          if (cell.character.empty()) {
+            ss += ' ';
+          } else {
+            ss += cell.character;
+          }
+        }
+        if (cell.character.size() <= 1) {
+          previous_fullwidth = false;
         } else {
-          ss << pixel.character;
+          previous_fullwidth = (string_width(cell.character) == 2);
         }
       }
-      previous_fullwidth = (string_width(pixel.character) == 2);
     }
   }
 
   // Reset the style to default:
-  UpdatePixelStyle(this, ss, *previous_pixel_ref, default_pixel);
-
-  return ss.str();
+  UpdateCellStyle(this, ss, *previous_cell_ref, default_cell);
 }
 
 // Print the Screen to the terminal.
@@ -474,26 +507,41 @@ void Screen::Print() const {
 /// @return The string to print in order to reset the cursor position to the
 ///         beginning.
 std::string Screen::ResetPosition(bool clear) const {
-  std::stringstream ss;
-  if (clear) {
-    ss << "\r";       // MOVE_LEFT;
-    ss << "\x1b[2K";  // CLEAR_SCREEN;
-    for (int y = 1; y < dimy_; ++y) {
-      ss << "\x1B[1A";  // MOVE_UP;
-      ss << "\x1B[2K";  // CLEAR_LINE;
-    }
-  } else {
-    ss << "\r";  // MOVE_LEFT;
-    for (int y = 1; y < dimy_; ++y) {
-      ss << "\x1B[1A";  // MOVE_UP;
-    }
-  }
-  return ss.str();
+  std::string ss;
+  ss.reserve(static_cast<size_t>(dimy_) * 12);
+  ResetPosition(ss, clear);
+  return ss;
 }
 
-/// @brief Clear all the pixel from the screen.
+/// @brief Append to a string in order to reset the cursor position to the
+///        beginning of the screen.
+/// @param ss The string to append to.
+/// @param clear Whether to clear the screen or not.
+void Screen::ResetPosition(std::string& ss, bool clear) const {
+  if (clear) {
+    // The clear branch must move up one row at a time, because each row needs
+    // its own CLEAR_LINE (\x1B[2K) erase. It cannot be collapsed into a single
+    // parameterized cursor-up.
+    ss += '\r';       // MOVE_LEFT;
+    ss += "\x1b[2K";  // CLEAR_SCREEN;
+    for (int y = 1; y < dimy_; ++y) {
+      ss += "\x1B[1A";  // MOVE_UP;
+      ss += "\x1B[2K";  // CLEAR_LINE;
+    }
+  } else {
+    // The non-clear branch only needs to reposition the cursor at the top-left,
+    // so the per-row walk-up is collapsed into a single parameterized
+    // CSI cursor-up (\x1B[<n>A), emitting far fewer bytes per frame.
+    ss += '\r';  // MOVE_LEFT;
+    if (dimy_ > 1) {
+      ss += "\x1B[" + std::to_string(dimy_ - 1) + "A";  // MOVE_UP;
+    }
+  }
+}
+
+/// @brief Clear all the cells from the screen.
 void Screen::Clear() {
-  Image::Clear();
+  Surface::Clear();
 
   cursor_.x = dimx_ - 1;
   cursor_.y = dimy_ - 1;
@@ -505,23 +553,23 @@ void Screen::Clear() {
 
 // clang-format off
 void Screen::ApplyShader() {
-  // Merge box characters togethers.
+  // Merge box characters together.
   for (int y = 0; y < dimy_; ++y) {
     for (int x = 0; x < dimx_; ++x) {
       // Box drawing character uses exactly 3 byte.
-      Pixel& cur = pixels_[y][x];
+      Cell& cur = FastCellAt(x, y);
       if (!ShouldAttemptAutoMerge(cur)) {
         continue;
       }
 
       if (x > 0) {
-        Pixel& left = pixels_[y][x-1];
+        Cell& left = FastCellAt(x - 1, y);
         if (ShouldAttemptAutoMerge(left)) {
           UpgradeLeftRight(left.character, cur.character);
         }
       }
       if (y > 0) {
-        Pixel& top = pixels_[y-1][x];
+        Cell& top = FastCellAt(x, y - 1);
         if (ShouldAttemptAutoMerge(top)) {
           UpgradeTopDown(top.character, cur.character);
         }
@@ -540,7 +588,7 @@ std::uint8_t Screen::RegisterHyperlink(std::string_view link) {
   if (hyperlinks_.size() == std::numeric_limits<std::uint8_t>::max()) {
     return 0;
   }
-  hyperlinks_.push_back(std::string(link));
+  hyperlinks_.emplace_back(link);
   return hyperlinks_.size() - 1;
 }
 
@@ -562,5 +610,14 @@ const Screen::SelectionStyle& Screen::GetSelectionStyle() const {
 void Screen::SetSelectionStyle(SelectionStyle decorator) {
   selection_style_ = std::move(decorator);
 }
+
+void Screen::Reserved1() {}
+void Screen::Reserved2() {}
+void Screen::Reserved3() {}
+void Screen::Reserved4() {}
+void Screen::Reserved5() {}
+void Screen::Reserved6() {}
+void Screen::Reserved7() {}
+void Screen::Reserved8() {}
 
 }  // namespace ftxui

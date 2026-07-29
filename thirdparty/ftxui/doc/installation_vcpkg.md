@@ -14,7 +14,7 @@ To use it, you can add the following to your `vcpkg.json`:
   "dependencies": [
     {
         "name": "ftxui",
-        "version>=": "6.1.9"
+        "version>=": "7.0.1"
     }
   ]
 }
@@ -46,14 +46,14 @@ target_link_libraries(main
 
 **main.cpp**
 ```cpp
-#include <ftxui/component/screen_interactive.hpp>
+#include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_options.hpp>
 
 int main() {
   using namespace ftxui;
 
-  auto screen = ScreenInteractive::TerminalOutput();
+  auto screen = App::TerminalOutput();
   auto button = Button("Click me", [] { std::cout << "Clicked!\n"; });
 
   screen.Loop(button);

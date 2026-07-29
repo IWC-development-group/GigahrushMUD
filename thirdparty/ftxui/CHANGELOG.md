@@ -4,12 +4,49 @@ Changelog
 Next
 ====
 
+7.0.1 (2026-07-14)
+------------------
+
+### Screen
+- Bugfix: Restore TrueColor support on Windows Terminal (default to TrueColor on Windows and check `WT_SESSION` environment variable for WSL compatibility). See #1305.
+- Feature: Honor the `NO_COLOR` environment variable (https://no-color.org). When set and non-empty, colors degrade to the terminal's default colors.
+- Bugfix: Apple's Terminal.app (`TERM_PROGRAM=Apple_Terminal`) is now reported as `Palette256` instead of `TrueColor`; it does not support 24bit colors.
+- Bugfix: An empty terminal name or terminal emulator name is now treated as unidentified by `Terminal::ComputeColorSupport`, instead of implying TrueColor support.
+- Bugfix (Windows): Downgrade color support when the console rejects VT processing (legacy consoles), instead of emitting TrueColor escape sequences.
+- Bugfix: Avoid segmentation fault / crash during static initialization if `Color::RGB` or other color constants are constructed globally/statically before `main()`. See #1303.
+
+
+### Build
+- Bugfix: Fix build failure when an older FTXUI is installed in a system
+  include path (e.g. MacPorts upgrade). A CMake deduplication quirk was
+  promoting the project's own `-I include/` to `-isystem`, causing package
+  managers' `-I/opt/local/include` (which may contain stale headers) to
+  win. See #1299, #1300.
+
+
+7.0.0 (2026-06-13)
+------------------
+
 ### Doc
 - Fix broken Doxygen output. See @markmandel in #1029.
 - Use Doxygen awesome. Add our own theme.
 - Break the documentation into several pages.
 
 ### Build
+- Feature: Support amalgamated version.
+  This provides a single-header (`ftxui.hpp`) and single-source (`ftxui.cpp`)
+  version of the library, as well as a truly single-file header-only version
+  (`ftxui_all.hpp`).
+  This is the easiest way to vendor FTXUI into your project.
+  See #1252.
+- Feature: Support umbrella header and target.
+  Usage:
+  ```cpp
+  #include <ftxui/ftxui.hpp>
+  ```
+  CMake: `target_link_libraries(your_target PRIVATE ftxui::ftxui)`
+  Bazel: `deps = ["@ftxui//:ftxui"]`
+  See #1252.
 - Feature: Support C++20 modules. 
   This requires:
   - Using the Ninja or MSVC generator
@@ -24,22 +61,39 @@ Next
   import ftxui.util;
   ```
   Thanks @mikomikotaishi for PR #1015.
+- Consolidate C++20 code into named modules to reduce compile times and improve flexibility. Thanks @mikomikotaishi in #1221.
+- Feature: Support Meson build system. Thanks @mintonmu in #1259.
 - Remove dependency on 'pthread'.
 - Bugfix: Bazel target @ftxui is now visible. Thanks @dskkato in #1157.
+- ABI: Explicitly size all public enums to `uint8_t` for ABI layout stability.
+- ABI: Add reserved virtual methods to `Screen` and `Node` for future
+  extensibility without breaking ABI.
 
 ### General
+- Breaking (Renames):
+  - `Pixel` is renamed to `Cell`.
+  - `Image` is renamed to `Surface`.
+  - `ScreenInteractive` is renamed to `App`.
+  - `PixelAt` method is renamed to `CellAt`.
+  Compatibility aliases and headers are provided to avoid breaking existing code.
+
 - Breaking. Move to `std::string_view` instead of `const std::string&` where
   applicable. This yields better interoperability with string literals and
   avoids unnecessary copies. Thanks @mikomikotaishi for PR #1154
 
 ### Component
+- Feature: Improved signal handling. Upgrade signal interception to use POSIX `sigaction` for robust signal masking and cleanup handler preservation. Protect against double terminal restoration on exit using atomic raw-state tracking. Add support for additional POSIX signals (`SIGBUS`, `SIGSYS` as crash signals, and `SIGQUIT`, `SIGHUP` as deferred termination signals) and fix async-signal-safety issues in crash paths.
+- Bugfix: Fix `Input` cursor visibility when using a custom `Renderer` on nested containers. See #1220. Thanks @nmarks99.
+- Fix `Input` cursor positioning and scroll stability. See #1196. Thanks @739C1AE2.
+- Fix `Input` support for non-ASCII characters in password mode. See #1196. Thanks @739C1AE2.
+- Performance: Mitigate cursor flickering during redraw in `App`. See #1196. Thanks @739C1AE2.
 - Feature: POSIX Piped Input Handling.
   - Allows FTXUI applications to read data from stdin (when piped) while still receiving keyboard input from the terminal.
   - Enabled by default.
-  - Can be disabled using `ScreenInteractive::HandlePipedInput(false)`.
+  - Can be disabled using `App::HandlePipedInput(false)`.
   - Only available on Linux and macOS.
   Thanks @HarryPehkonen for PR #1094.
-- Fix ScreenInteractive::FixedSize screen stomps on the preceding terminal
+- Fix App::FixedSize screen stomps on the preceding terminal
   output. Thanks @zozowell in #1064.
 - Fix vertical `ftxui::Slider`. The "up" key was previously decreasing the
   value. Thanks @its-pablo in #1093 for reporting the issue.
@@ -48,12 +102,49 @@ Next
   in #1160 for fixing the issue.
 - Fix Input style is now colorschem agnostic. Thanks @Smail in #1170 for reporting
   and fixing the issue.
+- Fix `App::Post(..)` is now thread safe. Thanks @739C1AE2 in
+  ~1183 for reporting the issue. This regressed in non released versions.
 
 ### Dom
+- Feature: Support newline `\n` within `text()` and `vtext()`. Thanks
+  @mikomikotaishi in #1215.
+- Bugfix: `dbox` now propagates focus from top-most layers to bottom-most
+  layers, matching the visual representation. See #1213. Thanks @vtnerd.
+- Feature: Support for table border decorators. This allows for instance to
+  color the border of a table. Thanks @Sckab in #1186 for proposing it.
 - Fix integer overflow in `ComputeShrinkHard`. Thanks @its-pablo in #1137 for
   reporting and fixing the issue.
 - Add specialization for `vbox/hbox/dbox` to allow a container of Element as
   as input. Thanks @nbusser in #1117.
+- Bugfix: In the gridbox, add the children to the tree so that the default
+  behaviors inherited from Node are correctly implemented. Thanks KenReneris for
+  #1070.
+- Update: The `gauge` in a flexible now takes the available space in the
+  opposite direction. Thanks @Ardet696 in #1203.
+- Feature: Add parameterized `_factor` variants of flex decorators. These allow
+  specifying custom grow/shrink factors:
+  `flex_factor(grow, shrink)`, `flex_grow_factor(grow)`,
+  `flex_shrink_factor(shrink)`, with `x` and `y` axis variants.
+  Usage: `element | flex_grow_factor(3)`.
+
+### Screen
+- Performance: Collapse the per-row cursor walk-up in the non-clear
+  `Screen::ResetPosition` into a single parameterized CSI cursor-up
+  (`\x1B[<n>A`) instead of emitting one `\x1B[1A` per row. This reduces the
+  per-frame escape bytes during steady-state redraw (e.g. ~197 -> 6 bytes for a
+  50-row screen, ~33x). On-screen output is unchanged.
+- Performance: Optimize `Screen::ToString()`, `Color::Print()` and
+  `string_width()`. 
+  This was achieved by:
+  1. Skipping calling `string_width` for cells with single-byte data (the
+     primary driver for performance gains).
+  2. Pre-allocating memory for the output string.
+  3. Optimizing the ASCII path for string width calculation.
+  Benchmarks show a significant improvement:
+  - Basic rendering: ~27% faster.
+  - Text rendering: ~27% faster.
+  - Styled rendering: ~38% faster.
+  Thanks @killerdevildog for initiating (2) in #1188.
 
 6.1.9 (2025-05-07)
 ------------
@@ -125,9 +216,9 @@ See #1017 and #1019.
 
 ### Component
 - Feature: Add support for raw input. Allowing more keys to be detected.
-- Feature: Add `ScreenInteractive::ForceHandleCtrlC(false)` to allow component
+- Feature: Add `App::ForceHandleCtrlC(false)` to allow component
   to fully override the default `Ctrl+C` handler.
-- Feature: Add `ScreenInteractive::ForceHandleCtrlZ(false)` to allow component
+- Feature: Add `App::ForceHandleCtrlZ(false)` to allow component
   to fully override the default `Ctrl+Z` handler.
 - Feature: Add `Mouse::WeelLeft` and `Mouse::WeelRight` events on supported
   terminals.
@@ -136,8 +227,8 @@ See #1017 and #1019.
   option. Added by @mingsheng13.
 - Feature: Add `DropdownOption` to configure the dropdown. See #826.
 - Feature: Add support for Selection. Thanks @clement-roblot. See #926.
-  - See `ScreenInteractive::GetSelection()`.
-  - See `ScreenInteractive::SelectionChange(...)` listener.
+  - See `App::GetSelection()`.
+  - See `App::SelectionChange(...)` listener.
 - Bugfix/Breaking change: `Mouse transition`:
   - Detect when the mouse move, as opposed to being pressed.
     The Mouse::Moved motion was added.
@@ -148,12 +239,12 @@ See #1017 and #1019.
   This fixes: https://github.com/ArthurSonzogni/FTXUI/issues/773
   This fixes: https://github.com/ArthurSonzogni/FTXUI/issues/792
 - Bugfix: mouse.control is now reported correctly.
-- Feature: Add `ScreenInteractive::FullscreenPrimaryScreen()`. This allows
+- Feature: Add `App::FullscreenPrimaryScreen()`. This allows
   displaying a fullscreen component on the primary screen, as opposed to the
   alternate screen.
 - Bugfix: `Input` `onchange` was not called on backspace or delete key.
   Fixed by @chrysante in chrysante in PR #776.
-- Bugfix: Propertly restore cursor shape on exit. See #792.
+- Bugfix: Properly restore cursor shape on exit. See #792.
 - Bugfix: Fix cursor position in when in the last column. See #831.
 - Bugfix: Fix `ResizeableSplit` keyboard navigation. Fixed by #842.
 - Bugfix: Fix `Menu` focus. See #841
@@ -221,7 +312,7 @@ See #1017 and #1019.
 - Breaking: `Ref<{Component}Option>` becomes `{Component}Option` in component constructors.
 - Feature: `ResizeableSplit` now support arbitrary element as a separator.
 - Feature: `input` is now supporting multiple lines.
-- Feature: `input` style is now customizeable.
+- Feature: `input` style is now customizable.
 - Bugfix: Support F1-F5 from OS terminal.
 - Feature: Add struct based constructor:
   ```cpp
@@ -234,7 +325,7 @@ See #1017 and #1019.
   Component Slider(SliderOption<T> options);
   Component ResizableSplit(ResizableSplitOption options);
   ```
-- Feature: Add `ScreenInteractive::TrackMouse(false)` disable mouse support.
+- Feature: Add `App::TrackMouse(false)` disable mouse support.
 
 ### Dom
 - Feature: Add `hyperlink` decorator. For instance:
@@ -278,9 +369,9 @@ See #1017 and #1019.
 - Expose the pkg-config file
 - Check version compatibility when using cmake find_package()
 
-4.1.0  (Abandonned)
+4.1.0  (Abandoned)
 -----
-This version is abandonned and must not be used. It introduced a breaking change in the API.
+This version is abandoned and must not be used. It introduced a breaking change in the API.
 
 4.0.0
 -----
@@ -303,7 +394,7 @@ This version is abandonned and must not be used. It introduced a breaking change
 - Bugfix: Forward the selected/focused area from the child in gridbox.
 - Bugfix: Fix incorrect Canvas computed dimensions.
 - Bugfix: Support `vscroll_indicator` with a zero inner size.
-- Bugfix: Fix `vscroll_indicator` hidding the last column.
+- Bugfix: Fix `vscroll_indicator` hiding the last column.
 
 ### Component:
 - Feature: Add the `Modal` component.
@@ -312,7 +403,7 @@ This version is abandonned and must not be used. It introduced a breaking change
     - multiple directions.
     - multiple colors.
     - various values (value, min, max, increment).
-- Feature: Define `ScreenInteractive::Exit()`.
+- Feature: Define `App::Exit()`.
 - Feature: Add `Loop` to give developers a better control on the main loop. This
   can be used to integrate FTXUI into another main loop, without taking the full
   control.
@@ -347,7 +438,7 @@ This version is abandonned and must not be used. It introduced a breaking change
   - `Menu` now support animations.
   - `Button` now supports animations.
 - Support SIGTSTP. (ctrl+z).
-- Support task posting. `ScreenInteractive::Post(Task)`.
+- Support task posting. `App::Post(Task)`.
 - `Menu` can now be used in the 4 directions, using `MenuOption.direction`.
 - `Menu` can display an animated underline, using
   `MenuOption.underline.enabled`.
@@ -368,7 +459,7 @@ This version is abandonned and must not be used. It introduced a breaking change
   - Add the `Maybe` decorator.
   - Add the `CatchEvent` decorator.
   - Add the `Renderer` decorator.
-- **breaking** remove the "deprectated.hpp" header and Input support for wide
+- **breaking** remove the "deprecated.hpp" header and Input support for wide
     string.
 
 ### DOM:
@@ -421,8 +512,8 @@ Element gaugeDirection(float ratio, GaugeDirection);
 
 #### Component 
 - Add the `collapsible` component.
-- Add the `ScreenInteractive::WithRestoredIO`. This decorates a callback. This
-  runs it with the terminal hooks temporarilly uninstalled. This is useful if
+- Add the `App::WithRestoredIO`. This decorates a callback. This
+  runs it with the terminal hooks temporarily uninstalled. This is useful if
   you want to execute command using directly stdin/stdout/sterr.
 
 ### Bug
@@ -476,7 +567,7 @@ Element gaugeDirection(float ratio, GaugeDirection);
 - `separatorFixed`. A separator drawing the provided character.
 
 ### Component
-- `Maybe`: Display an component conditionnally based on a boolean.
+- `Maybe`: Display an component conditionally based on a boolean.
 - `Dropdown`: A dropdown select list.
 
 0.9 (2021-09-26)

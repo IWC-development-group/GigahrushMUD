@@ -3,26 +3,25 @@
 // the LICENSE file.
 #include <string>  // for char_traits, operator+, string, basic_string
 
+#include "ftxui/component/app.hpp"             // for Component, App
 #include "ftxui/component/component.hpp"       // for Input, Renderer, Vertical
 #include "ftxui/component/component_base.hpp"  // for ComponentBase
 #include "ftxui/component/component_options.hpp"  // for InputOption
-#include "ftxui/component/screen_interactive.hpp"  // for Component, ScreenInteractive
 #include "ftxui/dom/elements.hpp"  // for text, hbox, separator, Element, operator|, vbox, border
 #include "ftxui/util/ref.hpp"  // for Ref
 
 using namespace ftxui;
 
 Element LoremIpsum() {
-  return vbox({
-      text("FTXUI: A powerful library for building user interfaces."),
-      text("Enjoy a rich set of components and a declarative style."),
-      text("Create beautiful and responsive UIs with minimal effort."),
-      text("Join the community and experience the power of FTXUI."),
-  });
+  return text(
+      "FTXUI: A powerful library for building user interfaces.\n"
+      "Enjoy a rich set of components and a declarative style.\n"
+      "Create beautiful and responsive UIs with minimal effort.\n"
+      "Join the community and experience the power of FTXUI.");
 }
 
 int main() {
-  auto screen = ScreenInteractive::TerminalOutput();
+  auto screen = App::TerminalOutput();
 
   auto quit =
       Button("Quit", screen.ExitLoopClosure(), ButtonOption::Animated());
@@ -72,7 +71,7 @@ int main() {
                    hbox({
                        LoremIpsum() | selectionColor(Color::Red),
                        separator(),
-                       LoremIpsum() | selectionStyle([](Pixel& pixel) {
+                       LoremIpsum() | selectionStyle([](Cell& pixel) {
                          pixel.underlined_double = true;
                        }),
                        separator(),

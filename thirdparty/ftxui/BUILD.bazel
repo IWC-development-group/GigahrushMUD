@@ -6,7 +6,6 @@
 # - Build benchmark.
 # - Build fuzzers.
 # - Build documentation.
-# - Enable the two tests timing out.
 # - Support WebAssembly
 
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
@@ -23,7 +22,11 @@ load(":bazel/ftxui.bzl", "windows_copts")
 ftxui_cc_library(
     name = "ftxui",
     hdrs = glob(["include/ftxui/**/*.hpp"]),
-    deps = [":component"],
+    deps = [
+        ":component",
+        ":dom",
+        ":screen",
+    ],
 )
 
 # @ftxui:screen is a module that provides a screen buffer and color management
@@ -36,7 +39,7 @@ ftxui_cc_library(
         "src/ftxui/screen/box.cpp",
         "src/ftxui/screen/color.cpp",
         "src/ftxui/screen/color_info.cpp",
-        "src/ftxui/screen/image.cpp",
+        "src/ftxui/screen/surface.cpp",
         "src/ftxui/screen/screen.cpp",
         "src/ftxui/screen/string.cpp",
         "src/ftxui/screen/string_internal.hpp",
@@ -45,6 +48,7 @@ ftxui_cc_library(
     ],
     hdrs = [
         "include/ftxui/screen/box.hpp",
+        "include/ftxui/screen/cell.hpp",
         "include/ftxui/screen/color.hpp",
         "include/ftxui/screen/color_info.hpp",
         "include/ftxui/screen/deprecated.hpp",
@@ -52,9 +56,12 @@ ftxui_cc_library(
         "include/ftxui/screen/pixel.hpp",
         "include/ftxui/screen/screen.hpp",
         "include/ftxui/screen/string.hpp",
+        "include/ftxui/screen/surface.hpp",
         "include/ftxui/screen/terminal.hpp",
         "include/ftxui/util/autoreset.hpp",
+        "include/ftxui/util/export.hpp",
         "include/ftxui/util/ref.hpp",
+        "include/ftxui/util/warn_windows_macro.hpp",
     ],
 )
 
@@ -124,11 +131,13 @@ ftxui_cc_library(
         "include/ftxui/dom/selection.hpp",
         "include/ftxui/dom/table.hpp",
         "include/ftxui/dom/take_any_args.hpp",
+        "include/ftxui/util/export.hpp",
+        "include/ftxui/util/warn_windows_macro.hpp",
     ],
     deps = [":screen"],
 )
 
-# @ftxui:component is a library to create "dynamic" component renderering and
+# @ftxui:component is a library to create "dynamic" component rendering and
 # updating a ftxui::dom document on the screen. It is a higher level API than
 # ftxui:dom.
 #
@@ -152,14 +161,14 @@ ftxui_cc_library(
         "src/ftxui/component/event.cpp",
         "src/ftxui/component/hoverable.cpp",
         "src/ftxui/component/input.cpp",
-        "src/ftxui/component/loop.cpp",
         "src/ftxui/component/maybe.cpp",
         "src/ftxui/component/menu.cpp",
         "src/ftxui/component/modal.cpp",
         "src/ftxui/component/radiobox.cpp",
         "src/ftxui/component/renderer.cpp",
         "src/ftxui/component/resizable_split.cpp",
-        "src/ftxui/component/screen_interactive.cpp",
+        "src/ftxui/component/app.cpp",
+        "src/ftxui/component/multi_receiver_buffer.hpp",
         "src/ftxui/component/slider.cpp",
         "src/ftxui/component/task.cpp",
         "src/ftxui/component/task_internal.hpp",
@@ -178,12 +187,10 @@ ftxui_cc_library(
         # Private header from ftxui:screen.
         "src/ftxui/screen/string_internal.hpp",
         "src/ftxui/screen/util.hpp",
-
-        # Private header.
-        "include/ftxui/util/warn_windows_macro.hpp",
     ],
     hdrs = [
         "include/ftxui/component/animation.hpp",
+        "include/ftxui/component/app.hpp",
         "include/ftxui/component/captured_mouse.hpp",
         "include/ftxui/component/component.hpp",
         "include/ftxui/component/component_base.hpp",
@@ -194,6 +201,8 @@ ftxui_cc_library(
         "include/ftxui/component/receiver.hpp",
         "include/ftxui/component/screen_interactive.hpp",
         "include/ftxui/component/task.hpp",
+        "include/ftxui/util/export.hpp",
+        "include/ftxui/util/warn_windows_macro.hpp",
     ],
     deps = [
         ":dom",
@@ -244,6 +253,7 @@ cc_test(
         "src/ftxui/dom/underlined_test.cpp",
         "src/ftxui/dom/vbox_test.cpp",
         "src/ftxui/screen/color_test.cpp",
+        "src/ftxui/screen/compatibility_test.cpp",
         "src/ftxui/screen/string_test.cpp",
         "src/ftxui/util/ref_test.cpp",
 
@@ -258,12 +268,10 @@ cc_test(
         # flexbox_helper_test.cpp.
         "src/ftxui/dom/flexbox_helper.hpp",
 
-        # TODO: Enable the two tests timing out with Bazel:
-        # - "src/ftxui/component/screen_interactive_test.cpp",
-        # - "src/ftxui/dom/selection_test.cpp",
+        "src/ftxui/component/app_test.cpp",
+        "src/ftxui/dom/selection_test.cpp",
     ],
     includes = [
-        "include",
         "src",
     ],
     copts = windows_copts(),

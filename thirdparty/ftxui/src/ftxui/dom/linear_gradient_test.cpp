@@ -7,7 +7,7 @@
 #include "ftxui/dom/elements.hpp"  // for operator|, text, bgcolor, color, Element
 #include "ftxui/dom/node.hpp"      // for Render
 #include "ftxui/screen/color.hpp"   // for Color, Color::RedLight, Color::Red
-#include "ftxui/screen/screen.hpp"  // for Screen, Pixel
+#include "ftxui/screen/screen.hpp"  // for Screen, Cell
 
 // NOLINTBEGIN
 namespace ftxui {
@@ -15,7 +15,7 @@ namespace ftxui {
 TEST(ColorTest, API_default) {
   LinearGradient gradient;
   EXPECT_EQ(gradient.angle, 0);
-  EXPECT_EQ(gradient.stops.size(), 0);
+  EXPECT_EQ(gradient.stops.size(), 0u);
 }
 
 TEST(ColorTest, API_builder) {
@@ -25,7 +25,7 @@ TEST(ColorTest, API_builder) {
                       .Stop(Color::RedLight, 0.5)
                       .Stop(Color::RedLight);
   EXPECT_EQ(gradient.angle, 45);
-  EXPECT_EQ(gradient.stops.size(), 3);
+  EXPECT_EQ(gradient.stops.size(), 3u);
   EXPECT_EQ(gradient.stops[0].color, Color::Red);
   EXPECT_EQ(gradient.stops[0].position, std::nullopt);
   EXPECT_EQ(gradient.stops[1].color, Color::RedLight);
@@ -37,7 +37,7 @@ TEST(ColorTest, API_builder) {
 TEST(ColorTest, API_constructor_bicolor) {
   auto gradient = LinearGradient(Color::Red, Color::RedLight);
   EXPECT_EQ(gradient.angle, 0);
-  EXPECT_EQ(gradient.stops.size(), 2);
+  EXPECT_EQ(gradient.stops.size(), 2u);
   EXPECT_EQ(gradient.stops[0].color, Color::Red);
   EXPECT_EQ(gradient.stops[0].position, std::nullopt);
   EXPECT_EQ(gradient.stops[1].color, Color::RedLight);
@@ -47,7 +47,7 @@ TEST(ColorTest, API_constructor_bicolor) {
 TEST(ColorTest, API_constructor_bicolor_angle) {
   auto gradient = LinearGradient(45, Color::Red, Color::RedLight);
   EXPECT_EQ(gradient.angle, 45);
-  EXPECT_EQ(gradient.stops.size(), 2);
+  EXPECT_EQ(gradient.stops.size(), 2u);
   EXPECT_EQ(gradient.stops[0].color, Color::Red);
   EXPECT_EQ(gradient.stops[0].position, std::nullopt);
   EXPECT_EQ(gradient.stops[1].color, Color::RedLight);
@@ -63,11 +63,11 @@ TEST(ColorTest, GradientForeground) {
   Color gradient_begin = Color::Interpolate(0, Color::RedLight, Color::Red);
   Color gradient_end = Color::Interpolate(1, Color::RedLight, Color::Red);
 
-  EXPECT_EQ(screen.PixelAt(0, 0).foreground_color, gradient_begin);
-  EXPECT_EQ(screen.PixelAt(0, 0).background_color, Color());
+  EXPECT_EQ(screen.CellAt(0, 0).foreground_color, gradient_begin);
+  EXPECT_EQ(screen.CellAt(0, 0).background_color, Color());
 
-  EXPECT_EQ(screen.PixelAt(4, 0).foreground_color, gradient_end);
-  EXPECT_EQ(screen.PixelAt(4, 0).background_color, Color());
+  EXPECT_EQ(screen.CellAt(4, 0).foreground_color, gradient_end);
+  EXPECT_EQ(screen.CellAt(4, 0).background_color, Color());
 }
 
 TEST(ColorTest, GradientBackground) {
@@ -79,11 +79,11 @@ TEST(ColorTest, GradientBackground) {
   Color gradient_begin = Color::Interpolate(0, Color::RedLight, Color::Red);
   Color gradient_end = Color::Interpolate(1, Color::RedLight, Color::Red);
 
-  EXPECT_EQ(screen.PixelAt(0, 0).foreground_color, Color());
-  EXPECT_EQ(screen.PixelAt(0, 0).background_color, gradient_begin);
+  EXPECT_EQ(screen.CellAt(0, 0).foreground_color, Color());
+  EXPECT_EQ(screen.CellAt(0, 0).background_color, gradient_begin);
 
-  EXPECT_EQ(screen.PixelAt(4, 0).foreground_color, Color());
-  EXPECT_EQ(screen.PixelAt(4, 0).background_color, gradient_end);
+  EXPECT_EQ(screen.CellAt(4, 0).foreground_color, Color());
+  EXPECT_EQ(screen.CellAt(4, 0).background_color, gradient_end);
 }
 
 }  // namespace ftxui
