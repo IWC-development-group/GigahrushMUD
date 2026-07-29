@@ -1,13 +1,15 @@
 set(SOURCES
 	Client.cpp
 	main.cpp
-)
+ "gigamud_proto.cpp")
 
 set(HEADERS
 	Client.h
 	Config.h
 	Parser.h
-)
+	"gigamud_proto.h"
+	"broadcaster.h"
+	"ux_game_menu.h")
 
 add_executable(GigahrushClient ${SOURCES} ${HEADERS})
 

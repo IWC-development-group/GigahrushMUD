@@ -7,6 +7,8 @@
 
 #include "asio.hpp"
 #include "Client.h"
+#include "broadcaster.h"
+#include "gigamud_proto.h"
 
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/screen/screen.hpp"
@@ -74,6 +76,9 @@ std::string nick;
 
 asio::io_context io_context;
 Client client(io_context, ip, port);
+
+using ClientBroadcaster = Broadcaster<gmbp::ClientBroadcast, gmbp::ServerBroadcast>;
+ClientBroadcaster broadcaster(io_context, 5487);
 
 std::string lastCommand;
 
