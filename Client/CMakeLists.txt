@@ -7,7 +7,6 @@ set(HEADERS
 	Client.h
 	Config.h
 	Parser.h
-	broadcaster.h
 	ux_game_menu.h
 	connection_event.h
 )

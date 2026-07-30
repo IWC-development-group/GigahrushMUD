@@ -9,6 +9,7 @@
 ============================================================
 */
 
+#define GMBP_DEFAULT_PORT			50478
 #define GMBP_HEADER					"GMBP v1.0_"
 #define GMBP_SRV_NAME_LENGTH		128
 #define GMBP_SRV_GAME_LENGTH		32

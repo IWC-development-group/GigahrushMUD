@@ -4,6 +4,9 @@
 #include <mutex>
 #include <atomic>
 
+#include <gmbp/protocol.h>
+#include <broadcast/broadcaster.h>
+
 #include "Server.h"
 #include "Game/Game.h"
 
@@ -202,11 +205,29 @@ void Terminal() {
 	}
 }
 
-int main()
-{
+using ServerBroadcaster = Broadcaster<gmbp::ServerBroadcast, gmbp::ClientBroadcast>;
+
+void processServerBroadcast() {
+	/* Wait for the other possible threads that will set global booleans to TRUE */
+	while (!serverRunning.load() || srvv != nullptr) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(30));
+	}
+
+	ServerBroadcaster broadcaster()
+
+	while (serverRunning.load()) {
+
+	}
+}
+
+int main() {
 	std::thread t1(Terminal);
+	
+	processServerBroadcast();
+	
 	if (t1.joinable()) {
 		t1.join();
 	}
+
 	return 0;
 }

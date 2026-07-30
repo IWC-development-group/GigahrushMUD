@@ -41,4 +41,6 @@ class Server {
 
 		void async_accept();
 		void startMapUpdate();
+
+		asio::io_context& getContext() { return io_context; }
 };

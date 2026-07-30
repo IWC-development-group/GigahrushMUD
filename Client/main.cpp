@@ -13,11 +13,11 @@
 #include <ftxui/component/component_options.hpp>
 #include <nlohmann/json.hpp>
 #include <gmbp/protocol.h>
+#include <broadcast/broadcaster.h>
 
 #include "Client.h"
 #include "Config.h"
 #include "Parser.h"
-#include "broadcaster.h"
 #include "connection_event.h"
 #include "ux_game_menu.h"
 
@@ -45,7 +45,7 @@ asio::io_context io_context;
 Client client(io_context, ip, port);
 
 using ClientBroadcaster = Broadcaster<gmbp::ClientBroadcast, gmbp::ServerBroadcast>;
-ClientBroadcaster broadcaster(io_context, 5487);
+ClientBroadcaster broadcaster(io_context, GMBP_DEFATULT_PORT);
 
 std::string lastCommand;
 
