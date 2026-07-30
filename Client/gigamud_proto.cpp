@@ -1,6 +1,7 @@
 #include "gigamud_proto.h"
+#include <array>
 
-namespace gmbp {
+namespace gmbp::geo {
 
     static constexpr std::array<const char*, Country::ZW + 1> COUNTRY_CODES = { {
         "AE", "AF", "AG", "AI", "AL", "AM", "AN", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AZ",
