@@ -9,14 +9,17 @@
 */
 template <typename St, typename Rt>
 class Broadcaster {
+	static_assert(std::is_trivially_copyable_v<St>, "St must be trivially copyable to send raw bytes");
+	static_assert(std::is_trivially_copyable_v<Rt>, "Rt must be trivially copyable to receive raw bytes");
 	using BroadcastCallback = std::function<void(const Rt&, size_t bytes, asio::ip::udp::endpoint)>;
+
 private:
 	asio::ip::udp::endpoint broadcastEndpoint;
 	asio::ip::udp::socket socket;
 	BroadcastCallback onReceiveCallback;
 
 public:
-	Broadcaster(asio::io_context& io, int port);
+	Broadcaster(asio::io_context& io, int port, bool nonBlocking = true);
 
 	void send(const St& message);
 	void onReceive(const BroadcastCallback& onReceiveCallback);
@@ -24,7 +27,7 @@ public:
 };
 
 template <typename St, typename Rt>
-Broadcaster::Broadcaster(asio::io_context& io, int port)
+Broadcaster<St, Rt>::Broadcaster(asio::io_context& io, int port, bool nonBlocking)
 	: broadcastEndpoint(asio::ip::address_v4::broadcast(), port), socket(io) {
 
 	asio::ip::udp::endpoint localEndpoint(asio::ip::address_v4::any(), port);
@@ -33,32 +36,33 @@ Broadcaster::Broadcaster(asio::io_context& io, int port)
 	asio::socket_base::broadcast broadcastOption(true);
 	socket.set_option(asio::ip::udp::socket::reuse_address(true));
 	socket.set_option(broadcastOption);
+	socket.non_blocking(nonBlocking);
 	socket.bind(localEndpoint);
 }
 
 template <typename St, typename Rt>
-void Broadcaster::send(const St& message) {
+void Broadcaster<St, Rt>::send(const St& message) {
 	try {
 		asio::error_code someError;
-		socket.send_to(asio::buffer(message, sizeof(St)), broadcastEndpoint, 0, someError);
-		std::println("Message broadcasted!");
+		socket.send_to(asio::buffer(&message, sizeof(St)), broadcastEndpoint, 0, someError);
+		//std::println("Message broadcasted!");
 	}
 	catch (std::exception& exc) {
-		std::println("Callout exception: {}", exc.what());
+		//std::println("Callout exception: {}", exc.what());
 	}
 }
 
 template <typename St, typename Rt>
-void Broadcaster::onReceive(const BroadcastCallback& onReceiveCallback) {
+void Broadcaster<St, Rt>::onReceive(const BroadcastCallback& onReceiveCallback) {
 	this->onReceiveCallback = onReceiveCallback;
 }
 
 template <typename St, typename Rt>
-void Broadcaster::poll() {
+void Broadcaster<St, Rt>::poll() {
 	try {
 		Rt message;
 		asio::ip::udp::endpoint senderEndpoint;
-		size_t bytesReceived = socket.receive_from(asio::buffer(message, sizeof(Rt)), senderEndpoint);
+		size_t bytesReceived = socket.receive_from(asio::buffer(&message, sizeof(Rt)), senderEndpoint);
 
 		//std::println("Sender: {0}\nMessage: {1}",
 		//	senderEndpoint.address().to_string(),
@@ -67,6 +71,6 @@ void Broadcaster::poll() {
 		onReceiveCallback(message, bytesReceived, senderEndpoint);
 	}
 	catch (std::exception& exc) {
-		std::println("Listening exception: {}", exc.what());
+		//std::println("Listening exception: {}", exc.what());
 	}
 }
