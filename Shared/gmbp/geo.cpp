@@ -1,4 +1,4 @@
-#include "gigamud_proto.h"
+#include "geo.h"
 #include <array>
 
 namespace gmbp::geo {
