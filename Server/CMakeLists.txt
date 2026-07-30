@@ -20,8 +20,18 @@ set(HEADERS
 )
 
 add_executable (GigahrushServer ${SOURCES} ${HEADERS})
-target_link_libraries(GigahrushServer PRIVATE asio)
-target_link_libraries(GigahrushServer PRIVATE nlohmann_json)
+
+set(SHARED_DIR "${CMAKE_SOURCE_DIR}/Shared")
+
+target_include_directories(GigahrushServer PRIVATE
+	"${SHARED_DIR}/"
+)
+
+target_link_libraries(GigahrushServer PRIVATE
+	gmbp
+	asio
+	nlohmann_json
+)
 
 target_compile_options(GigahrushServer PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
