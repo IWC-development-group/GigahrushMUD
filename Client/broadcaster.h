@@ -23,7 +23,7 @@ public:
 
 	void send(const St& message);
 	void onReceive(const BroadcastCallback& onReceiveCallback);
-	void poll();
+	bool poll();
 };
 
 template <typename St, typename Rt>
@@ -58,19 +58,23 @@ void Broadcaster<St, Rt>::onReceive(const BroadcastCallback& onReceiveCallback) 
 }
 
 template <typename St, typename Rt>
-void Broadcaster<St, Rt>::poll() {
-	try {
-		Rt message;
-		asio::ip::udp::endpoint senderEndpoint;
-		size_t bytesReceived = socket.receive_from(asio::buffer(&message, sizeof(Rt)), senderEndpoint);
+bool Broadcaster<St, Rt>::poll() {
+	Rt message;
+	asio::ip::udp::endpoint senderEndpoint;
+	asio::error_code error;
 
-		//std::println("Sender: {0}\nMessage: {1}",
-		//	senderEndpoint.address().to_string(),
-		//	bytesReceived);
+	size_t bytesReceived = socket.receive_from(
+		asio::buffer(&message, sizeof(Rt)),
+		senderEndpoint,
+		0,
+		error
+	);
 
+	if (error) return false;
+	
+	if (onReceiveCallback) {
 		onReceiveCallback(message, bytesReceived, senderEndpoint);
 	}
-	catch (std::exception& exc) {
-		//std::println("Listening exception: {}", exc.what());
-	}
+
+	return true;
 }

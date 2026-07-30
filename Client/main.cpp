@@ -5,56 +5,21 @@
 #include <atomic>
 #include <deque>
 
-#include "asio.hpp"
+#include <asio.hpp>
+#include <ftxui/dom/elements.hpp>
+#include <ftxui/screen/screen.hpp>
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/screen_interactive.hpp>
+#include <ftxui/component/component_options.hpp>
+#include <nlohmann/json.hpp>
+#include <gmbp/protocol.h>
+
 #include "Client.h"
-#include "broadcaster.h"
-#include "gigamud_proto.h"
-
-#include "ftxui/dom/elements.hpp"
-#include "ftxui/screen/screen.hpp"
-#include "ftxui/component/component.hpp"
-#include "ftxui/component/screen_interactive.hpp"
-#include "ftxui/component/component_options.hpp"
-
-#include "nlohmann/json.hpp"
-
 #include "Config.h"
 #include "Parser.h"
-
-/*
-std::string ConvertCP1251ToUTF8(const std::string& str)
-{
-	int len = MultiByteToWideChar(1251, 0, str.c_str(), -1, NULL, 0);
-	wchar_t* wstr = new wchar_t[len];
-	MultiByteToWideChar(1251, 0, str.c_str(), -1, wstr, len);
-
-	len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, 0, 0);
-	char* utf8 = new char[len];
-	WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8, len, 0, 0);
-
-	std::string result(utf8);
-	delete[] wstr;
-	delete[] utf8;
-
-	return result;
-}
-
-std::string ConvertUTF8ToCP1251(const std::string& str)
-{
-	int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
-	wchar_t* wstr = new wchar_t[len];
-	MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, wstr, len);
-
-	len = WideCharToMultiByte(1251, 0, wstr, -1, NULL, 0, NULL, NULL);
-	char* cp1251 = new char[len];
-	WideCharToMultiByte(1251, 0, wstr, -1, cp1251, len, NULL, NULL);
-
-	std::string result(cp1251);
-	delete[] wstr;
-	delete[] cp1251;
-
-	return result;
-}*/
+#include "broadcaster.h"
+#include "connection_event.h"
+#include "ux_game_menu.h"
 
 enum class State {CONNECTED, DISCONNECTED};
 
@@ -74,6 +39,8 @@ std::string ip;
 std::string port;
 std::string nick;
 
+EventManager events;
+
 asio::io_context io_context;
 Client client(io_context, ip, port);
 
@@ -88,7 +55,7 @@ auto screen = ftxui::ScreenInteractive::Fullscreen();
 
 void UpdateMsgThread();
 
-void Connect() {
+void Connect(const std::string& ip, const std::string& port, std::string& nick) {
 	std::lock_guard<std::mutex> lock(mtx);
 
 	if (state == State::CONNECTED) { return; }
@@ -100,7 +67,6 @@ void Connect() {
 		client.Connect();
 		state = State::CONNECTED;
 		bgRunning = true;
-		bg = std::thread(UpdateMsgThread);
 		client.Send(nick);
 	}
 	catch (const std::exception& ec) {
@@ -119,72 +85,75 @@ void SendServ(std::string request) {
 	}
 }
 
-void UpdateMsgThread() {
-	while (bgRunning) {
-		asio::error_code ec;
-		client.recv_buffer_server.resize(4096);
-		if (client.socket.is_open()) {
-			size_t br = client.socket.read_some(asio::buffer(client.recv_buffer_server), ec);
+bool menuUpdate() {
+	return broadcaster.poll();
+}
 
-			if (ec) { continue; }
+bool inGameUpdate() {
+	if (client.socket.is_open()) return false;
 
-			client.recv_buffer_server.resize(br);
+	asio::error_code ec;
+	client.recv_buffer_server.resize(4096);
+	size_t br = client.socket.read_some(asio::buffer(client.recv_buffer_server), ec);
 
-			try {
-				nlohmann::json js = nlohmann::json::parse(client.recv_buffer_server);
-				if (js["type"] == "ANSWER") {
-					addLog(logs, js);
-				}
-				else if (js["type"] == "MAP") {
-					map = js["content"];
-				}
-				else if (js["type"] == "SERVER") {
-					addServerMsg(serverMessages, js);
-				}
-			}
-			catch (std::exception& er) {
-				//Пока уберу для релиза
-				logs.push_back(ftxui::text(er.what()) | ftxui::size(ftxui::WIDTH, ftxui::LESS_THAN, 50));
-			}
+	if (ec) { return false; }
 
-			screen.PostEvent(ftxui::Event::Special("refresh"));
+	client.recv_buffer_server.resize(br);
+
+	try {
+		nlohmann::json js = nlohmann::json::parse(client.recv_buffer_server);
+		if (js["type"] == "ANSWER") {
+			addLog(logs, js);
+		}
+		else if (js["type"] == "MAP") {
+			map = js["content"];
+		}
+		else if (js["type"] == "SERVER") {
+			addServerMsg(serverMessages, js);
 		}
 	}
-	return;
+	catch (std::exception& er) {
+		//Пока уберу для релиза
+		logs.push_back(ftxui::text(er.what()) | ftxui::size(ftxui::WIDTH, ftxui::LESS_THAN, 50));
+	}
+
+	return true;
+}
+
+void UpdateMsgThread() {
+	bool refreshNeeded = false;
+
+	while (bgRunning) {
+		if (!(refreshNeeded = inGameUpdate())) refreshNeeded = menuUpdate();
+		if (refreshNeeded) screen.PostEvent(ftxui::Event::Special("refresh"));
+	}
 }
 
 void MainThread() {
+	ConnectionEvent connectionPressed;
+	connectionPressed.onEvent([&](const std::string& ip, const std::string& port, std::string& nick) {
+		Connect(ip, port, nick);
+	});
+
+	using namespace lsid::literals;
+	events.add<"ON_CONNECT_PRESSED"_sid32>(connectionPressed);
+
 	//FTXUI
 
 	//First time box elements
 
-	ftxui::Component ipInput = ftxui::Input(&ip);
-	ftxui::Component portInput = ftxui::Input(&port);
-	ftxui::Component nickInput = ftxui::Input(&nick);
+	ux::GameMenu gameMenu(events);
+	ftxui::Component firstField = gameMenu.getComponent();
 
-	ftxui::Component ipInputHandler = ftxui::CatchEvent(ipInput, [&](ftxui::Event event) {
-		if (event == ftxui::Event::Return) { return true; }
-		return false;
-		});
+	broadcaster.onReceive([&](const gmbp::ServerBroadcast& server, size_t bytes, asio::ip::udp::endpoint endpoint) {
+		std::lock_guard<std::mutex> guard(mtx);
 
-	ftxui::Component portInputHandler = ftxui::CatchEvent(portInput, [&](ftxui::Event event) {
-		if (event == ftxui::Event::Return) { return true; }
-		return false;
-		});
-
-	ftxui::Component nickInputHandler = ftxui::CatchEvent(nickInput, [&](ftxui::Event event) {
-		if (event == ftxui::Event::Return) { Connect();  return true; }
-		return false;
-		});
-
-	ftxui::Component connectButton = ftxui::Button("Подключиться", Connect);
-
-	ftxui::Component firstField = ftxui::Container::Vertical({
-		ipInputHandler,
-		portInputHandler,
-		nickInputHandler,
-		connectButton
-		});
+		if (server.header.header != GMBP_HEADER 
+			|| server.header.type != gmbp::Type::SERVER_BROADCAST) return;
+		
+		int port = endpoint.port();
+		gameMenu.addServer(server, endpoint.address().to_string(), port);
+	});
 
 	//Main box elements
 	std::string userCommand;
@@ -194,19 +163,6 @@ void MainThread() {
 	ftxui::Component logWindow = ftxui::Renderer([&] {
 		return ftxui::vbox(logs) | ftxui::focusPositionRelative(0.0f, 1.0f);
 	});
-
-	/*ftxui::Component serverWindow = ftxui::Renderer([&] {
-		std::vector<ftxui::Element> elements;
-
-		for (const auto& log : serverMessages) {
-			elements.push_back(
-				ftxui::paragraph(log)
-			);
-		}
-
-		return ftxui::vbox(elements) | ftxui::frame |
-			ftxui::vscroll_indicator | ftxui::focusPositionRelative(0.0f, 1.0f);
-	});*/
 
 	ftxui::Component serverWindow = ftxui::Renderer([&] {
 		return ftxui::vbox(serverMessages) | ftxui::focusPositionRelative(0.0f, 1.0f);
@@ -242,7 +198,7 @@ void MainThread() {
 		}
 
 		return false;
-		});
+	});
 
 	ftxui::Component mainBox = ftxui::Container::Vertical({
 			firstField,
@@ -256,24 +212,14 @@ void MainThread() {
 		//Logs
 
 		auto login_form = ftxui::vbox({
-			ftxui::text("IP: "), ipInput->Render(), ftxui::separator(),
-			ftxui::text("Порт: "), portInput->Render(), ftxui::separator(),
-			ftxui::text("Имя игрока: "), nickInput->Render(), ftxui::separator(),
-			connectButton->Render() | ftxui::center
-			});
+			firstField->Render() | ftxui::flex_grow
+		}) | ftxui::flex;
 
-		auto centered_content = ftxui::vbox({
-			ftxui::filler() | ftxui::flex,
-			login_form,
-			ftxui::filler() | ftxui::flex
-			}) | ftxui::flex;
+		auto centered_content = ftxui::vbox({ login_form }) | ftxui::flex;
 
 		if (state == State::DISCONNECTED) {
-			return ftxui::window(ftxui::text("Вход") | ftxui::center | ftxui::bold, centered_content)
-				| ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 35)
-				| ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, 14)
-				| ftxui::center
-				| ftxui::color(MAIN_COLOR);
+			return ftxui::window(ftxui::text("Вход") | ftxui::bold, centered_content)
+				|	ftxui::flex;
 		}
 
 		auto game_box = ftxui::vbox({
@@ -298,12 +244,13 @@ void MainThread() {
 		}) | ftxui::flex;
 
 		return main_layout;
+	});
 
-		//return ftxui::window(ftxui::text("Гигахрущ"), game_box) | ftxui::flex | ftxui::color(ftxui::Color::Green);
-		});
+	gmbp::ClientBroadcast clientBroadcast;
+	clientBroadcast.header.type = gmbp::Type::CLIENT_BROADCAST;
+
+	broadcaster.send(clientBroadcast);
 	screen.Loop(renderer);
-
-	//EFTXUI
 
 	return;
 }
@@ -311,6 +258,7 @@ void MainThread() {
 int main()
 {
 	std::thread mt(MainThread);
+	bg = std::thread(UpdateMsgThread);
 
 	if (mt.joinable()) {
 		mt.join();
@@ -320,84 +268,5 @@ int main()
 		bg.join();
 	}
 
-	/*
-	#ifdef _WIN32
-		SetConsoleCP(1251); 
-		SetConsoleOutputCP(1251);
-	#else
-		setlocale(LC_ALL, "ru_RU.UTF-8");
-	#endif
-	//Config
-
-	std::string ip;
-	std::string port;
-
-	std::cout << "Введите IP: ";
-	std::getline(std::cin, ip);
-	std::cout << "Введите порт: ";
-	std::getline(std::cin, port);
-
-	//audiere::AudioDevicePtr device = audiere::OpenDevice();
-	//audiere::SoundEffect* sound = audiere::OpenSoundEffect(device, "effect.mp3", audiere::SINGLE);
-
-	std::string nick;
-	do {
-		std::cout << "Введите ник: \n> ";
-		std::getline(std::cin, nick);
-	} while (nick == "");
-
-	while (running) {
-		asio::io_context io_context;
-		//sound->play();
-		try {
-			Client client(io_context, ip, port);
-			client.Connect();
-
-			std::string nickConv = ConvertCP1251ToUTF8(nick);
-			std::string str = client.Send(nickConv);
-			std::string response_local = ConvertUTF8ToCP1251(str);
-			std::cout << response_local << std::endl;
-
-			while (true) {
-				try {
-					std::cout << "> ";
-					std::string msg;
-					std::getline(std::cin, msg);
-					if (msg == "") continue;
-					if (msg == "exit") { running = false; break; };
-
-					std::string msg_utf8 = ConvertCP1251ToUTF8(msg);
-					std::string str = client.Send(msg_utf8);
-					std::string response_local = ConvertUTF8ToCP1251(str);
-					std::cout << response_local << std::endl;
-				}
-				catch (const std::exception& e) {
-					std::cout << "Ошибка соединения подключится.\nПопробовать снова? (Y/N) :";
-					std::string ans;
-					std::getline(std::cin, ans);
-					if (ans == "Y" || ans == "y") {
-						client.Connect();
-					}
-					else {
-						running = false;
-						break;
-					}
-				}
-			}
-		}
-		catch (const std::exception& e) {
-			std::cout << "Невозможно подключится.\nПопробовать снова? (Y/N) :";
-			std::string ans;
-			std::getline(std::cin, ans);
-			if (ans == "Y" || ans == "y") {
-				continue;
-			}
-			else {
-				running = false;
-			}
-		}
-	}
-	return 0;
-	*/
 	return 0;
 }
