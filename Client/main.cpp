@@ -45,7 +45,7 @@ asio::io_context io_context;
 Client client(io_context, ip, port);
 
 using ClientBroadcaster = Broadcaster<gmbp::ClientBroadcast, gmbp::ServerBroadcast>;
-ClientBroadcaster broadcaster(io_context, GMBP_DEFATULT_PORT);
+ClientBroadcaster broadcaster(io_context, GMBP_DEFAULT_PORT);
 
 std::string lastCommand;
 

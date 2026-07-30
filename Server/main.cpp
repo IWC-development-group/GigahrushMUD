@@ -213,10 +213,23 @@ void processServerBroadcast() {
 		std::this_thread::sleep_for(std::chrono::milliseconds(30));
 	}
 
-	ServerBroadcaster broadcaster()
+	ServerBroadcaster broadcaster(srvv->getContext(), GMBP_DEFAULT_PORT);
+
+	gmbp::ServerBroadcast response;
+	response.header.type = gmbp::Type::SERVER_BROADCAST;
+	response.country = gmbp::geo::RU;
+	response.playerCount = 1;
+
+	std::strcpy(response.game, "GigahrushMUD (RU)");
+	std::strcpy(response.name, "Kupitman's daily v-rot server");
+
+	broadcaster.onReceive([&](const gmbp::ClientBroadcast& request, size_t bytes, asio::ip::udp::endpoint endpoint) {
+		broadcaster.send(response);
+	});
 
 	while (serverRunning.load()) {
-
+		broadcaster.poll();
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
 
