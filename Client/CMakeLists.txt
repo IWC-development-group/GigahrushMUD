@@ -1,7 +1,8 @@
 set(SOURCES
 	Client.cpp
 	main.cpp
- "gigamud_proto.cpp")
+	"gigamud_proto.cpp"
+	"ux_game_menu.cpp")
 
 set(HEADERS
 	Client.h
@@ -9,16 +10,16 @@ set(HEADERS
 	Parser.h
 	"gigamud_proto.h"
 	"broadcaster.h"
-	"ux_game_menu.h")
+	"ux_game_menu.h" "connection_event.h")
 
 add_executable(GigahrushClient ${SOURCES} ${HEADERS})
 
-set(aud_dir "${CMAKE_SOURCE_DIR}/thirdparty/audiere-1.9.4-win32/")
-target_link_libraries(GigahrushClient PRIVATE "${aud_dir}/lib/audiere.lib")
-target_include_directories(GigahrushClient PRIVATE "${aud_dir}/include")
+set(LSID_DIR "${CMAKE_SOURCE_DIR}/thirdparty/lsid")
+
+target_include_directories(GigahrushClient PRIVATE "${LSID_DIR}/")
+
 target_link_libraries(GigahrushClient PRIVATE asio)
 target_link_libraries(GigahrushClient PRIVATE nlohmann_json)
-target_link_libraries(GigahrushClient PRIVATE ${aud_dir}/lib/audiere.lib)
 
 target_link_libraries(GigahrushClient PRIVATE 
 	ftxui::component
@@ -26,6 +27,6 @@ target_link_libraries(GigahrushClient PRIVATE
 	ftxui::screen
 )
 
-#target_compile_options(GigahrushClient PRIVATE
-#    $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
-#)
+target_compile_options(GigahrushClient PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
