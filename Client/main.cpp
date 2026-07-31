@@ -31,7 +31,7 @@ std::atomic<bool> bgRunning = false;
 
 std::mutex mtx;
 
-State state = State::DISCONNECTED;
+std::atomic<State> state = State::DISCONNECTED;
 
 std::vector<ftxui::Element> logs;
 std::vector<ftxui::Element> serverMessages;
@@ -69,7 +69,6 @@ void Connect(const std::string& ip, const std::string& port, std::string& nick) 
 
 		client.Connect();
 		state = State::CONNECTED;
-		bgRunning = true;
 		client.Send(nick);
 	}
 	catch (const std::exception& ec) {
@@ -93,7 +92,7 @@ bool menuUpdate() {
 }
 
 bool inGameUpdate() {
-	if (client.socket.is_open()) return false;
+	if (state == State::DISCONNECTED) return false;
 
 	asio::error_code ec;
 	client.recv_buffer_server.resize(4096);
@@ -125,9 +124,9 @@ bool inGameUpdate() {
 
 void UpdateMsgThread() {
 	bool refreshNeeded = false;
+	bgRunning = true;
 
 	while (bgRunning) {
-		std::println("HUIHUIHIUHUI");
 		if (!(refreshNeeded = inGameUpdate())) refreshNeeded = menuUpdate();
 		if (refreshNeeded) screen.PostEvent(ftxui::Event::Special("refresh"));
 	}
@@ -259,8 +258,7 @@ void MainThread() {
 	return;
 }
 
-int main()
-{
+int main() {
 	Log::init("debug.log");
 
 	std::thread mt(MainThread);

@@ -213,7 +213,7 @@ using ServerBroadcaster = Broadcaster<gmbp::ServerBroadcast, gmbp::ClientBroadca
 
 void processServerBroadcast() {
 	/* Wait for the other possible threads that will set global booleans to TRUE */
-	while (!serverRunning.load() || srvv != nullptr) {
+	while (!serverRunning.load() || !srvv) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(30));
 	}
 
@@ -228,7 +228,7 @@ void processServerBroadcast() {
 	std::strcpy(response.name, "Kupitman's daily v-rot server");
 
 	broadcaster.onReceive([&](const gmbp::ClientBroadcast& request, size_t bytes, asio::ip::udp::endpoint endpoint) {
-		std::println("Receiving packet with size {} from {}", bytes, endpoint.address().to_string());
+		Log::important("Receiving packet with size {} from {}", bytes, endpoint.address().to_string());
 		broadcaster.send(response);
 	});
 
@@ -244,7 +244,7 @@ void processServerBroadcast() {
 }
 
 int main() {
-	Log::init("debug.log");
+	Log::init();
 
 	std::thread t1(Terminal);
 	
