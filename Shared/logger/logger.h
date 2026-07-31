@@ -2,9 +2,9 @@
 	TODO: replace it with spdlog
 */
 
+#include <iostream>
 #include <fstream>
 #include <string>
-#include <print>
 #include <array>
 #include <chrono>
 
@@ -25,7 +25,7 @@ namespace logger {
 		Log& operator=(const Log&) = delete;
 
 		template <typename ...Args>
-		void writeFileLine(std::string_view level, std::format_string<Args...> fmt, Args&&... args);
+		void writeFileLine(bool toStderr, std::string_view level, std::format_string<Args...> fmt, Args&&... args);
 
 	public:
 		static Log* init();
@@ -67,9 +67,7 @@ namespace logger {
 	};
 
 	template <typename ...Args>
-	void Log::writeFileLine(std::string_view level, std::format_string<Args...> fmt, Args&&... args) {
-		if (!stream.is_open()) return;
-
+	void Log::writeFileLine(bool toStderr, std::string_view level, std::format_string<Args...> fmt, Args&&... args) {
 		std::array<char, LOGGER_STACK_BUFF_SIZE> buffer;
 		char* it = buffer.data();
 		char* end = buffer.data() + buffer.size();
@@ -80,28 +78,32 @@ namespace logger {
 		it = std::format_to_n(it, end - it, fmt, std::forward<Args>(args)...).out;
 		if (it < end) *it++ = '\n';
 
-		stream.write(buffer.data(), it - buffer.data());
+		std::ostream& out = stream.is_open()
+			? static_cast<std::ostream&>(stream)
+			: (toStderr ? std::cerr : std::cout);
+
+		out.write(buffer.data(), it - buffer.data());
 	}
 
 	template <typename ...Args>
 	void Log::_info(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("INFO", fmt, std::forward<Args>(args)...);
+		writeFileLine(false, "INFO", fmt, std::forward<Args>(args)...);
 	}
 
 	template <typename ...Args>
 	void Log::_warn(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("WARN", fmt, std::forward<Args>(args)...);
+		writeFileLine(true, "WARN", fmt, std::forward<Args>(args)...);
 	}
 
 	template <typename ...Args>
 	void Log::_error(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("ERROR", fmt, std::forward<Args>(args)...);
+		writeFileLine(true, "ERROR", fmt, std::forward<Args>(args)...);
 		stream.flush();
 	}
 
 	template <typename ...Args>
 	void Log::_important(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("IMPORTANT", fmt, std::forward<Args>(args)...);
+		writeFileLine(true, "IMPORTANT", fmt, std::forward<Args>(args)...);
 		stream.flush();
 	}
 
