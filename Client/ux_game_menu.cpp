@@ -1,5 +1,5 @@
 #include "ux_game_menu.h"
-#include "connection_event.h"
+#include "events.h"
 
 namespace ux {
 
@@ -33,9 +33,14 @@ namespace ux {
 			);
 		});
 
+		refreshButton = ftxui::Button("Refresh", [this]() {
+			events.fire<RefreshEvent, "ON_REFRESH_PRESSED"_sid32>();
+		});
+
 		ftxui::Component base = ftxui::Container::Vertical({
 			serverList,
-			connectButton
+			connectButton,
+			refreshButton
 		});
 
 		container = ftxui::Renderer(base, [this] {
@@ -46,7 +51,8 @@ namespace ux {
 				|	ftxui::vscroll_indicator
 				|	ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, 8),
 				ftxui::separator(),
-				connectButton->Render()
+				connectButton->Render(),
+				refreshButton->Render()
 			});
 		});
 	}

@@ -26,6 +26,7 @@ namespace ux {
 
 		ftxui::Component serverList;
 		ftxui::Component connectButton;
+		ftxui::Component refreshButton;
 		ftxui::Component container;
 
 		int selectedServer;

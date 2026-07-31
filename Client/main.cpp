@@ -19,15 +19,16 @@
 #include "Client.h"
 #include "Config.h"
 #include "Parser.h"
-#include "connection_event.h"
+#include "events.h"
 #include "ux_game_menu.h"
 
 using Log = logger::Log;
 
 enum class State {CONNECTED, DISCONNECTED};
 
-std::atomic<bool> running = true;
+std::atomic<bool> broadcastPollRunning = true;
 std::atomic<bool> bgRunning = false;
+std::atomic<bool> refreshNeeded = false;
 
 std::mutex mtx;
 
@@ -48,16 +49,18 @@ asio::io_context io_context;
 Client client(io_context, ip, port);
 
 using ClientBroadcaster = Broadcaster<gmbp::ClientBroadcast, gmbp::ServerBroadcast>;
-ClientBroadcaster broadcaster(io_context, GMBP_DEFAULT_PORT);
+ClientBroadcaster broadcaster(io_context, GMBP_DEFAULT_PORT, false);
 
 std::string lastCommand;
 
-std::thread bg;
+std::thread inGameUpdater;
+std::thread broadcastPoller;
 
 auto screen = ftxui::ScreenInteractive::Fullscreen();
 
 void UpdateMsgThread();
 
+/* !!! Runs UpdateMsgThread !!! */
 void Connect(const std::string& ip, const std::string& port, std::string& nick) {
 	std::lock_guard<std::mutex> lock(mtx);
 
@@ -69,6 +72,8 @@ void Connect(const std::string& ip, const std::string& port, std::string& nick) 
 
 		client.Connect();
 		state = State::CONNECTED;
+		bgRunning = true;
+		inGameUpdater = std::thread(UpdateMsgThread);
 		client.Send(nick);
 	}
 	catch (const std::exception& ec) {
@@ -87,8 +92,12 @@ void SendServ(std::string request) {
 	}
 }
 
-bool menuUpdate() {
-	return broadcaster.poll();
+void broadcastPoll() {
+	while (broadcastPollRunning) {
+		if (broadcaster.poll() && state == State::DISCONNECTED) {
+			screen.PostEvent(ftxui::Event::Special("refresh"));
+		}
+	}
 }
 
 bool inGameUpdate() {
@@ -123,42 +132,67 @@ bool inGameUpdate() {
 }
 
 void UpdateMsgThread() {
-	bool refreshNeeded = false;
-	bgRunning = true;
-
 	while (bgRunning) {
-		if (!(refreshNeeded = inGameUpdate())) refreshNeeded = menuUpdate();
-		if (refreshNeeded) screen.PostEvent(ftxui::Event::Special("refresh"));
+		if (inGameUpdate()) screen.PostEvent(ftxui::Event::Special("refresh"));
 	}
 }
 
+/* Runs broadcastPoll thread */
 void MainThread() {
-	ConnectionEvent connectionPressed;
-	connectionPressed.onEvent([&](const std::string& ip, const std::string& port, std::string& nick) {
+	broadcastPollRunning = true;
+	broadcastPoller = std::thread(broadcastPoll);
+
+	ConnectionEvent connectPressed;
+	connectPressed.onEvent([&](const std::string& ip, const std::string& port, std::string& nick) {
 		Connect(ip, port, nick);
 	});
 
+	RefreshEvent refreshPressed;
+	refreshPressed.onEvent([&] {
+		gmbp::ClientBroadcast clientBroadcast;
+		clientBroadcast.header.type = gmbp::Type::CLIENT_BROADCAST;
+		broadcaster.send(clientBroadcast);
+	});
+
 	using namespace lsid::literals;
-	events.add<"ON_CONNECT_PRESSED"_sid32>(connectionPressed);
 
-	//FTXUI
+	events.add<"ON_CONNECT_PRESSED"_sid32>(connectPressed);
+	events.add<"ON_REFRESH_PRESSED"_sid32>(refreshPressed);
 
-	//First time box elements
+	/* FTXUI */
+
+	/* Menu elements */
 
 	ux::GameMenu gameMenu(events);
 	ftxui::Component firstField = gameMenu.getComponent();
 
+	Log::info("Main thread started");
+
 	broadcaster.onReceive([&](const gmbp::ServerBroadcast& server, size_t bytes, asio::ip::udp::endpoint endpoint) {
 		std::lock_guard<std::mutex> guard(mtx);
 
-		if (server.header.header != GMBP_HEADER 
-			|| server.header.type != gmbp::Type::SERVER_BROADCAST) return;
-		
 		int port = endpoint.port();
+
+		std::string_view serverHeader(server.header.header);
+		std::string_view gmbpHeader(GMBP_HEADER);
+
+		if (serverHeader != gmbpHeader || server.header.type != gmbp::Type::SERVER_BROADCAST) {
+			return;
+		}
+
+		Log::important("{} from {}:{} ([{}] {})",
+			bytes,
+			endpoint.address().to_string(),
+			port,
+			gmbp::geo::countryToString(server.country),
+			server.name
+		);
+		
 		gameMenu.addServer(server, endpoint.address().to_string(), port);
 	});
 
-	//Main box elements
+	/* Main box elements */
+
 	std::string userCommand;
 	ftxui::Component commandInput = ftxui::Input(&userCommand);
 	int selected_log = 0;
@@ -209,10 +243,10 @@ void MainThread() {
 			mainInputHandler,
 			serverWindow,
 			mapWindow
-		});
+	});
 
 	ftxui::Component renderer = ftxui::Renderer(mainBox, [&] {
-		//Logs
+		/* Logs */
 
 		auto login_form = ftxui::vbox({
 			firstField->Render() | ftxui::flex_grow
@@ -249,10 +283,7 @@ void MainThread() {
 		return main_layout;
 	});
 
-	gmbp::ClientBroadcast clientBroadcast;
-	clientBroadcast.header.type = gmbp::Type::CLIENT_BROADCAST;
-
-	broadcaster.send(clientBroadcast);
+	events.fire<RefreshEvent, "ON_REFRESH_PRESSED"_sid32>();
 	screen.Loop(renderer);
 
 	return;
@@ -261,15 +292,19 @@ void MainThread() {
 int main() {
 	Log::init("debug.log");
 
-	std::thread mt(MainThread);
-	bg = std::thread(UpdateMsgThread);
+	MainThread();
 
-	if (mt.joinable()) {
-		mt.join();
+	/* Stopping all tasks */
+
+	if (inGameUpdater.joinable()) {
+		inGameUpdater.join();
 	}
 
-	if (bg.joinable()) {
-		bg.join();
+	broadcastPollRunning = false;
+	broadcaster.close();
+
+	if (broadcastPoller.joinable()) {
+		broadcastPoller.join();
 	}
 
 	Log::destroy();
