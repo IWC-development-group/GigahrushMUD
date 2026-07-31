@@ -8,7 +8,7 @@ set(HEADERS
 	Config.h
 	Parser.h
 	ux_game_menu.h
-	connection_event.h
+	"events.h"
 )
 
 add_executable(GigahrushClient ${SOURCES} ${HEADERS})
