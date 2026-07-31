@@ -29,6 +29,7 @@ target_include_directories(GigahrushServer PRIVATE
 
 target_link_libraries(GigahrushServer PRIVATE
 	gmbp
+	logger
 	asio
 	nlohmann_json
 )

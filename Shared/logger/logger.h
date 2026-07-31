@@ -1,10 +1,14 @@
+/*
+	TODO: replace it with spdlog
+*/
+
 #include <fstream>
 #include <string>
 #include <print>
 #include <array>
 #include <chrono>
 
-#define LOGGER_STACK_BUFF_SIZE	512
+#define LOGGER_STACK_BUFF_SIZE		1024
 
 namespace logger {
 
@@ -30,29 +34,49 @@ namespace logger {
 		static void destroy();
 
 		template <typename ...Args>
-		void info(std::format_string<Args...> fmt, Args&&... args);
+		void _info(std::format_string<Args...> fmt, Args&&... args);
 
 		template <typename ...Args>
-		void warn(std::format_string<Args...> fmt, Args&&... args);
+		void _warn(std::format_string<Args...> fmt, Args&&... args);
 
 		template <typename ...Args>
-		void error(std::format_string<Args...> fmt, Args&&... args);
+		void _error(std::format_string<Args...> fmt, Args&&... args);
 
 		template <typename ...Args>
-		void important(std::format_string<Args...> fmt, Args&&... args);
+		void _important(std::format_string<Args...> fmt, Args&&... args);
+
+		template <typename ...Args>
+		static void info(std::format_string<Args...> fmt, Args&&... args) {
+			log->_info(fmt, std::forward<Args>(args)...);
+		}
+
+		template <typename ...Args>
+		static void warn(std::format_string<Args...> fmt, Args&&... args) {
+			log->_warn(fmt, std::forward<Args>(args)...);
+		}
+
+		template <typename ...Args>
+		static void error(std::format_string<Args...> fmt, Args&&... args) {
+			log->_error(fmt, std::forward<Args>(args)...);
+		}
+
+		template <typename ...Args>
+		static void important(std::format_string<Args...> fmt, Args&&... args) {
+			log->_important(fmt, std::forward<Args>(args)...);
+		}
 	};
 
 	template <typename ...Args>
-	void writeFileLine(std::string_view level, std::format_string<Args...> fmt, Args&&... args) {
+	void Log::writeFileLine(std::string_view level, std::format_string<Args...> fmt, Args&&... args) {
 		if (!stream.is_open()) return;
 
 		std::array<char, LOGGER_STACK_BUFF_SIZE> buffer;
-		char* it = buffer.begin();
-		char* end = buffer.end();
+		char* it = buffer.data();
+		char* end = buffer.data() + buffer.size();
 
 		auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
 
-		it = std::format_to_n(it, end - it, "[{:%Y-%m-%d %H:%M:%S}][{}]", now, level).out;
+		it = std::format_to_n(it, end - it, "[{:%Y-%m-%d %H:%M:%S}][{}] ", now, level).out;
 		it = std::format_to_n(it, end - it, fmt, std::forward<Args>(args)...).out;
 		if (it < end) *it++ = '\n';
 
@@ -60,23 +84,25 @@ namespace logger {
 	}
 
 	template <typename ...Args>
-	void Log::info(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("[INFO]", fmt, std::forward<Args>(args)...);
+	void Log::_info(std::format_string<Args...> fmt, Args&&... args) {
+		writeFileLine("INFO", fmt, std::forward<Args>(args)...);
 	}
 
 	template <typename ...Args>
-	void Log::warn(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("[WARN]", fmt, std::forward<Args>(args)...);
+	void Log::_warn(std::format_string<Args...> fmt, Args&&... args) {
+		writeFileLine("WARN", fmt, std::forward<Args>(args)...);
 	}
 
 	template <typename ...Args>
-	void Log::error(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("[ERROR]", fmt, std::forward<Args>(args)...);
+	void Log::_error(std::format_string<Args...> fmt, Args&&... args) {
+		writeFileLine("ERROR", fmt, std::forward<Args>(args)...);
+		stream.flush();
 	}
 
 	template <typename ...Args>
-	void Log::important(std::format_string<Args...> fmt, Args&&... args) {
-		writeFileLine("[IMPORTANT]", fmt, std::forward<Args>(args)...);
+	void Log::_important(std::format_string<Args...> fmt, Args&&... args) {
+		writeFileLine("IMPORTANT", fmt, std::forward<Args>(args)...);
+		stream.flush();
 	}
 
 }

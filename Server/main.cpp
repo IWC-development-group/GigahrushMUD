@@ -3,12 +3,16 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <print>
 
 #include <gmbp/protocol.h>
 #include <broadcast/broadcaster.h>
+#include <logger/logger.h>
 
 #include "Server.h"
 #include "Game/Game.h"
+
+using Log = logger::Log;
 
 std::mutex gameMutex;
 std::atomic<bool> serverRunning = false;
@@ -224,6 +228,7 @@ void processServerBroadcast() {
 	std::strcpy(response.name, "Kupitman's daily v-rot server");
 
 	broadcaster.onReceive([&](const gmbp::ClientBroadcast& request, size_t bytes, asio::ip::udp::endpoint endpoint) {
+		std::println("Receiving packet with size {} from {}", bytes, endpoint.address().to_string());
 		broadcaster.send(response);
 	});
 
@@ -231,9 +236,16 @@ void processServerBroadcast() {
 		broadcaster.poll();
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
+
+	/*
+		FIXME: 
+		If the server was stopped it will stop all broadcast processing with no ability to resume it
+	*/
 }
 
 int main() {
+	Log::init("debug.log");
+
 	std::thread t1(Terminal);
 	
 	processServerBroadcast();
@@ -242,5 +254,6 @@ int main() {
 		t1.join();
 	}
 
+	Log::destroy();
 	return 0;
 }

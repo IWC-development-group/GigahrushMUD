@@ -25,6 +25,7 @@ target_link_libraries(GigahrushClient PRIVATE
 	asio
 	nlohmann_json
 	gmbp
+	logger
 
 	# FTXUI
 	ftxui::component

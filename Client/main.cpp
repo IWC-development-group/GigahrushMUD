@@ -14,12 +14,15 @@
 #include <nlohmann/json.hpp>
 #include <gmbp/protocol.h>
 #include <broadcast/broadcaster.h>
+#include <logger/logger.h>
 
 #include "Client.h"
 #include "Config.h"
 #include "Parser.h"
 #include "connection_event.h"
 #include "ux_game_menu.h"
+
+using Log = logger::Log;
 
 enum class State {CONNECTED, DISCONNECTED};
 
@@ -124,6 +127,7 @@ void UpdateMsgThread() {
 	bool refreshNeeded = false;
 
 	while (bgRunning) {
+		std::println("HUIHUIHIUHUI");
 		if (!(refreshNeeded = inGameUpdate())) refreshNeeded = menuUpdate();
 		if (refreshNeeded) screen.PostEvent(ftxui::Event::Special("refresh"));
 	}
@@ -257,6 +261,8 @@ void MainThread() {
 
 int main()
 {
+	Log::init("debug.log");
+
 	std::thread mt(MainThread);
 	bg = std::thread(UpdateMsgThread);
 
@@ -268,5 +274,6 @@ int main()
 		bg.join();
 	}
 
+	Log::destroy();
 	return 0;
 }
