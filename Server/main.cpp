@@ -228,6 +228,11 @@ void processServerBroadcast() {
 	std::strcpy(response.name, "Kupitman's daily v-rot server");
 
 	broadcaster.onReceive([&](const gmbp::ClientBroadcast& request, size_t bytes, asio::ip::udp::endpoint endpoint) {
+		std::string_view clientHeader(request.header.header);
+		std::string_view gmbpHeader(GMBP_HEADER);
+
+		if (clientHeader != gmbpHeader || request.header.type != gmbp::Type::CLIENT_BROADCAST) return;
+
 		Log::important("Receiving packet with size {} from {}", bytes, endpoint.address().to_string());
 		broadcaster.send(response);
 	});
