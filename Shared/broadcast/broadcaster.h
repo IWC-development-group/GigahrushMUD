@@ -23,6 +23,8 @@ public:
 
 	void send(const St& message);
 	void onReceive(const BroadcastCallback& onReceiveCallback);
+	void close();
+
 	bool poll();
 };
 
@@ -42,19 +44,19 @@ Broadcaster<St, Rt>::Broadcaster(asio::io_context& io, int port, bool nonBlockin
 
 template <typename St, typename Rt>
 void Broadcaster<St, Rt>::send(const St& message) {
-	try {
-		asio::error_code someError;
-		socket.send_to(asio::buffer(&message, sizeof(St)), broadcastEndpoint, 0, someError);
-		//std::println("Message broadcasted!");
-	}
-	catch (std::exception& exc) {
-		//std::println("Callout exception: {}", exc.what());
-	}
+	asio::error_code someError;
+	socket.send_to(asio::buffer(&message, sizeof(St)), broadcastEndpoint, 0, someError);
 }
 
 template <typename St, typename Rt>
 void Broadcaster<St, Rt>::onReceive(const BroadcastCallback& onReceiveCallback) {
 	this->onReceiveCallback = onReceiveCallback;
+}
+
+template <typename St, typename Rt>
+void Broadcaster<St, Rt>::close() {
+	asio::error_code error;
+	socket.close(error);
 }
 
 template <typename St, typename Rt>
