@@ -49,7 +49,7 @@ asio::io_context io_context;
 Client client(io_context, ip, port);
 
 using ClientBroadcaster = Broadcaster<gmbp::ClientBroadcast, gmbp::ServerBroadcast>;
-ClientBroadcaster broadcaster(io_context, GMBP_DEFAULT_PORT, false);
+ClientBroadcaster broadcaster(io_context, 0, GMBP_DEFAULT_PORT, false);
 
 std::string lastCommand;
 
@@ -177,6 +177,7 @@ void MainThread() {
 		std::string_view serverHeader(server.header.header);
 		std::string_view gmbpHeader(GMBP_HEADER);
 
+		Log::important("detected: {}, {}", serverHeader, (uint32_t)server.header.type);
 		if (serverHeader != gmbpHeader || server.header.type != gmbp::Type::SERVER_BROADCAST) {
 			return;
 		}
@@ -218,7 +219,7 @@ void MainThread() {
 		if (event == ftxui::Event::Return) {
 			if (userCommand == "") { return true; }
 
-			/* FIXME: logs.push_back can be called from two threads at the same time. Add locks! */
+			/* FIXME: logs.push_back can be called from two threads at the same time (main thread, inGameUpdate). Add locks! */
 			logs.push_back(ftxui::text(""));
 			logs.push_back(ftxui::text("---------------------"));
 			logs.push_back(ftxui::text(""));

@@ -229,7 +229,7 @@ void processServerBroadcast() {
 		});
 	}
 
-	ServerBroadcaster broadcaster(srvv.load()->getContext(), GMBP_DEFAULT_PORT);
+	ServerBroadcaster broadcaster(srvv.load()->getContext(), GMBP_DEFAULT_PORT, GMBP_DEFAULT_PORT);
 	gmbp::ServerBroadcast response;
 
 	{
@@ -252,7 +252,7 @@ void processServerBroadcast() {
 		if (clientHeader != gmbpHeader || request.header.type != gmbp::Type::CLIENT_BROADCAST) return;
 
 		Log::important("Receiving packet with size {} from {}", bytes, endpoint.address().to_string());
-		broadcaster.send(response);
+		broadcaster.send(response, endpoint);
 	});
 
 	do {
