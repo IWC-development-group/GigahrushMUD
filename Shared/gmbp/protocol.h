@@ -35,6 +35,7 @@ namespace gmbp {
 		geo::Country country;
 		char name[GMBP_SRV_NAME_LENGTH];
 		char game[GMBP_SRV_GAME_LENGTH];
+		uint32_t port;
 		uint32_t playerCount;
 	};
 
