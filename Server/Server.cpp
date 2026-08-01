@@ -2,9 +2,12 @@
 #include "Server.h"
 #include "utils.h"
 
-Server::Server(asio::io_context& io_context, std::uint16_t port) :
+Server::Server(asio::io_context& io_context) : Server(io_context, ServerConfig::loadOrDefault()) {}
+
+Server::Server(asio::io_context& io_context, ServerConfig _config) :
+	config(_config),
 	io_context(io_context),
-	acceptor(io_context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
+	acceptor(io_context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), _config.getPort())),
 	timer1(io_context),
 	samosborDuringTimer(io_context),
 	samosborIntervalTimer(io_context),
@@ -12,7 +15,8 @@ Server::Server(asio::io_context& io_context, std::uint16_t port) :
 	timer3(io_context),
 	autosave_timer(io_context),
 	autosave_filename("autosave"),
-	autosaveGoing(false) {}
+	autosaveGoing(false) {
+}
 
 void Server::async_accept() {
 	socket.emplace(io_context);

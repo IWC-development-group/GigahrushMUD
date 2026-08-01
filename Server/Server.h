@@ -1,7 +1,8 @@
 ﻿#pragma once
 #include <optional>
-#include "asio.hpp"
+#include <asio.hpp>
 #include "Session.h"
+#include "server_config.h"
 
 class Server {
 	private:
@@ -17,12 +18,16 @@ class Server {
 
 		asio::steady_timer autosave_timer;
 
+		ServerConfig config;
+
+		Server(asio::io_context& io_context, ServerConfig config);
+
 	public:
 		std::string autosave_filename;
 		bool autosaveGoing;
 
 		std::vector<std::weak_ptr<Session>> allSessions;
-		Server(asio::io_context& io_context, std::uint16_t port);
+		Server(asio::io_context& io_context);
 		void newPlayerNotify(std::string);
 		void disconnectPlayerNotify(std::string);
 		void sendChatMessage(std::shared_ptr<Gigahrush::Player>, std::string);
@@ -42,5 +47,6 @@ class Server {
 		void async_accept();
 		void startMapUpdate();
 
+		ServerConfig& getConfig() { return config; }
 		asio::io_context& getContext() { return io_context; }
 };
