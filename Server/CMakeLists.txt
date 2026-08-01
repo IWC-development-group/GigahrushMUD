@@ -7,7 +7,7 @@
 	Game/GameStructures.cpp
 	Game/CommandHandler.cpp
 	utils.cpp
-)
+ "server_config.cpp")
 
 set(HEADERS 
 	Server.h
@@ -17,7 +17,7 @@ set(HEADERS
 	Game/GameStructures.h
 	Game/CommandHandler.h
 	utils.h
-)
+ "server_config.h")
 
 add_executable (GigahrushServer ${SOURCES} ${HEADERS})
 

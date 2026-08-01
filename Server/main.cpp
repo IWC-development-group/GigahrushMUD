@@ -3,6 +3,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <condition_variable>
 #include <print>
 
 #include <gmbp/protocol.h>
@@ -15,10 +16,13 @@
 using Log = logger::Log;
 
 std::mutex gameMutex;
+std::mutex serverBroadcastMutex;
+std::condition_variable serverStartCv;
+
 std::atomic<bool> serverRunning = false;
 std::atomic<bool> isExit = false;
 std::atomic<bool> serverActive = false;
-Server* srvv = nullptr;
+std::atomic<Server*> srvv = nullptr;
 
 std::string toLowerCase(std::string str) {
 	std::string res = "";
@@ -28,9 +32,14 @@ std::string toLowerCase(std::string str) {
 	return res;
 }
 
+void setServerRunning(bool running) {
+	serverRunning = running;
+	serverStartCv.notify_all();
+}
+
 void StartServer() {
 	asio::io_context io_context;
-	Server srv(io_context, 15001);
+	Server srv(io_context);
 	srvv = &srv;
 
 	srv.startMapUpdate();
@@ -100,7 +109,7 @@ void Terminal() {
 
 			gameMutex.lock();
 			if (Game.isGenerated) {
-				serverRunning = true;
+				setServerRunning(true);
 				Game.isReseted = false;
 			}
 			else {
@@ -110,18 +119,18 @@ void Terminal() {
 		}
 		else if (lowCom == "stop") {
 			std::cout << "Stopping server...\n";
-			serverRunning = false;
+			setServerRunning(false);
 		}
 		else if (lowCom == "reset") {
 			if (srvv != nullptr) {
 				std::cout << "Stopping server...\n";
-				serverRunning = false;
+				setServerRunning(false);
 
 				std::cout << "Reseting game...\n";
 				Game.isReseted = true;
 				gameMutex.lock();
 				Game.ResetGame();
-				for (auto& it : srvv->allSessions) {
+				for (auto& it : srvv.load()->allSessions) {
 					auto p = it.lock();
 					if (p != nullptr) {
 						p->sessionPlayer.reset();
@@ -139,7 +148,7 @@ void Terminal() {
 		}
 		else if (lowCom == "exit") {
 			std::cout << "Stopping server...\n";
-			serverRunning = false;
+			setServerRunning(false);
 			isExit = true;
 
 			if (serverThread.joinable()) {
@@ -180,7 +189,7 @@ void Terminal() {
 					if (words[1] == "name") {
 						if (words.size() >= 3) {
 							if (srvv != nullptr) {
-								srvv->autosave_filename = words[2];
+								srvv.load()->autosave_filename = words[2];
 								std::cout << "Autosave filename changed to " << words[2] << "\n";
 							}
 						}
@@ -191,13 +200,13 @@ void Terminal() {
 					else if (words[1] == "start") {
 						if (srvv != nullptr) {
 							std::cout << "Autosave started\n";
-							srvv->autosaveGoing = true;
-							srvv->autosave();
+							srvv.load()->autosaveGoing = true;
+							srvv.load()->autosave();
 						}
 					}
 					else if (words[1] == "stop") {
 						if (srvv != nullptr) {
-							srvv->autosaveGoing = false;
+							srvv.load()->autosaveGoing = false;
 						}
 					}
 				}
@@ -213,19 +222,28 @@ using ServerBroadcaster = Broadcaster<gmbp::ServerBroadcast, gmbp::ClientBroadca
 
 void processServerBroadcast() {
 	/* Wait for the other possible threads that will set global booleans to TRUE */
-	while (!serverRunning.load() || !srvv) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(30));
+	{
+		std::unique_lock<std::mutex> lock(serverBroadcastMutex);
+		serverStartCv.wait(lock, [] {
+			return (serverRunning.load() && srvv);
+		});
 	}
 
-	ServerBroadcaster broadcaster(srvv->getContext(), GMBP_DEFAULT_PORT);
-
+	ServerBroadcaster broadcaster(srvv.load()->getContext(), GMBP_DEFAULT_PORT);
 	gmbp::ServerBroadcast response;
-	response.header.type = gmbp::Type::SERVER_BROADCAST;
-	response.country = gmbp::geo::RU;
-	response.playerCount = 1;
 
-	std::strcpy(response.game, "GigahrushMUD (RU)");
-	std::strcpy(response.name, "Kupitman's daily v-rot server");
+	{
+		std::lock_guard<std::mutex> guard(serverBroadcastMutex);
+		
+		ServerConfig& config = srvv.load()->getConfig();
+		response.country = config.getCountry();
+		response.port = config.getPort();
+		std::strcpy(response.game, config.getGameName().c_str());
+		std::strcpy(response.name, config.getServerName().c_str());
+
+		response.playerCount = static_cast<uint32_t>(srvv.load()->allSessions.size());
+		response.header.type = gmbp::Type::SERVER_BROADCAST;
+	}
 
 	broadcaster.onReceive([&](const gmbp::ClientBroadcast& request, size_t bytes, asio::ip::udp::endpoint endpoint) {
 		std::string_view clientHeader(request.header.header);
@@ -237,15 +255,19 @@ void processServerBroadcast() {
 		broadcaster.send(response);
 	});
 
-	while (serverRunning.load()) {
-		broadcaster.poll();
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
-	}
+	do {
+		while (serverRunning.load()) {
+			broadcaster.poll();
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
 
-	/*
-		FIXME: 
-		If the server was stopped it will stop all broadcast processing with no ability to resume it
-	*/
+		/* Wait until the server will continue it's work again */
+		{
+			std::unique_lock<std::mutex> lock(serverBroadcastMutex);
+			serverStartCv.wait(lock, [] { return serverRunning.load(); });
+		}
+	} while (!isExit);
+
 }
 
 int main() {
