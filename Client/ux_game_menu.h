@@ -34,11 +34,12 @@ namespace ux {
 		std::vector<std::string> elements;
 
 		void rebuildList();
+		void connectToSelected();
 
 	public:
 		GameMenu(EventManager& events);
 
-		void addServer(const gmbp::ServerBroadcast& server, const std::string& ip, int port);
+		void addServer(const gmbp::ServerBroadcast& server, const std::string& ip);
 		ftxui::Component getComponent() const { return container; }
 
 		const ServerEntry& getSelectedServer() const { return servers[selectedServer]; }

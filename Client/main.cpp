@@ -112,6 +112,8 @@ bool inGameUpdate() {
 	client.recv_buffer_server.resize(br);
 
 	try {
+		Log::important("Some hueta detected");
+
 		nlohmann::json js = nlohmann::json::parse(client.recv_buffer_server);
 		if (js["type"] == "ANSWER") {
 			addLog(logs, js);
@@ -188,7 +190,7 @@ void MainThread() {
 			server.name
 		);
 		
-		gameMenu.addServer(server, endpoint.address().to_string(), port);
+		gameMenu.addServer(server, endpoint.address().to_string());
 	});
 
 	/* Main box elements */
@@ -248,14 +250,12 @@ void MainThread() {
 	ftxui::Component renderer = ftxui::Renderer(mainBox, [&] {
 		/* Logs */
 
-		auto login_form = ftxui::vbox({
-			firstField->Render() | ftxui::flex_grow
-		}) | ftxui::flex;
+		auto login_form = ftxui::vbox({ firstField->Render() });
 
-		auto centered_content = ftxui::vbox({ login_form }) | ftxui::flex;
+		//auto centered_content = ftxui::vbox({ login_form }) | ftxui::flex;
 
 		if (state == State::DISCONNECTED) {
-			return ftxui::window(ftxui::text("Вход") | ftxui::bold, centered_content)
+			return ftxui::window(ftxui::text("Серверы") | ftxui::bold, login_form)
 				|	ftxui::flex;
 		}
 

@@ -11,29 +11,24 @@ namespace ux {
 			gmbp::geo::countryToString(entry.server.country),
 			entry.server.name,
 			entry.ip,
-			entry.port);
+			entry.server.port);
 	}
 
 	GameMenu::GameMenu(EventManager& _events) : events(_events), selectedServer(0) {
 		ftxui::MenuOption menuOption;
-
-		rebuildList();
+		menuOption.on_enter = [&] {
+			connectToSelected();
+		};
 
 		serverList = ftxui::Menu(&elements, &selectedServer, menuOption);
 
-		connectButton = ftxui::Button("Connect", [this]() {			
-			if (servers.empty()) return;
-
-			std::string nick("player");
-
-			events.fire<ConnectionEvent, "ON_CONNECT_PRESSED"_sid32>(
-				servers[selectedServer].ip,
-				std::to_string(servers[selectedServer].port),
-				nick
-			);
+		connectButton = ftxui::Button("Connect", [this]() {
+			connectToSelected();
 		});
 
 		refreshButton = ftxui::Button("Refresh", [this]() {
+			servers.clear();
+			elements.clear();
 			events.fire<RefreshEvent, "ON_REFRESH_PRESSED"_sid32>();
 		});
 
@@ -45,33 +40,43 @@ namespace ux {
 
 		container = ftxui::Renderer(base, [this] {
 			return ftxui::vbox({
-				ftxui::text("Servers"),
-				serverList->Render()
-				|	ftxui::frame
-				|	ftxui::vscroll_indicator
-				|	ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, 8),
+				ftxui::hbox({
+					connectButton->Render(),
+					refreshButton->Render(),
+					ftxui::filler()
+				}),
+
+				//ftxui::filler(),
 				ftxui::separator(),
-				connectButton->Render(),
-				refreshButton->Render()
-			});
+
+				serverList->Render()
+				| ftxui::frame
+				| ftxui::vscroll_indicator
+			}) | ftxui::flex;
 		});
+	}
+
+	void GameMenu::connectToSelected() {
+		if (servers.empty()) return;
+
+		std::string nick("player");
+
+		events.fire<ConnectionEvent, "ON_CONNECT_PRESSED"_sid32>(
+			servers[selectedServer].ip,
+			std::to_string(servers[selectedServer].server.port),
+			nick
+		);
 	}
 
 	void GameMenu::rebuildList() {
-		elements.clear();
-		
-		for (auto& server : servers) {
-			elements.push_back(serverEntryToString(server));
-		}
 	}
 
-	void GameMenu::addServer(const gmbp::ServerBroadcast& server, const std::string& ip, int port) {
+	void GameMenu::addServer(const gmbp::ServerBroadcast& server, const std::string& ip) {
 		servers.push_back({
 			.server = server,
-			.ip = ip,
-			.port = port
+			.ip = ip
 		});
 
-		rebuildList();
+		elements.push_back(serverEntryToString(servers[servers.size() - 1]));
 	}
 }
