@@ -95,6 +95,7 @@ void SendServ(std::string request) {
 void broadcastPoll() {
 	while (broadcastPollRunning) {
 		if (broadcaster.poll() && state == State::DISCONNECTED) {
+			/* FIXME: PostEvent is not thread-safe! Add locks. */
 			screen.PostEvent(ftxui::Event::Special("refresh"));
 		}
 	}
@@ -112,8 +113,6 @@ bool inGameUpdate() {
 	client.recv_buffer_server.resize(br);
 
 	try {
-		Log::important("Some hueta detected");
-
 		nlohmann::json js = nlohmann::json::parse(client.recv_buffer_server);
 		if (js["type"] == "ANSWER") {
 			addLog(logs, js);
@@ -219,6 +218,7 @@ void MainThread() {
 		if (event == ftxui::Event::Return) {
 			if (userCommand == "") { return true; }
 
+			/* FIXME: logs.push_back can be called from two threads at the same time. Add locks! */
 			logs.push_back(ftxui::text(""));
 			logs.push_back(ftxui::text("---------------------"));
 			logs.push_back(ftxui::text(""));
@@ -240,11 +240,11 @@ void MainThread() {
 	});
 
 	ftxui::Component mainBox = ftxui::Container::Vertical({
-			firstField,
-			logWindow,
-			mainInputHandler,
-			serverWindow,
-			mapWindow
+		firstField,
+		logWindow,
+		mainInputHandler,
+		serverWindow,
+		mapWindow
 	});
 
 	ftxui::Component renderer = ftxui::Renderer(mainBox, [&] {
